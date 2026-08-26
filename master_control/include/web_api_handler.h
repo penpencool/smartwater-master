@@ -141,6 +141,7 @@ public:
                 JsonObject sObj = schedArr.createNestedObject();
                 sObj["enabled"] = configManager.config.schedules[i].enabled;
                 sObj["zone"] = configManager.config.schedules[i].zone;
+                sObj["days"] = configManager.config.schedules[i].daysOfWeek;
                 sObj["startHour"] = configManager.config.schedules[i].startHour;
                 sObj["startMin"] = configManager.config.schedules[i].startMin;
                 sObj["endHour"] = configManager.config.schedules[i].endHour;
@@ -171,7 +172,7 @@ public:
             }
 
             // Firmware & GitHub Info
-            doc["firmwareVer"] = "v1.2.11";
+            doc["firmwareVer"] = "v1.2.12";
             doc["githubRepo"] = String(configManager.config.githubRepo);
 
             String response;
@@ -243,7 +244,7 @@ public:
         // 4b. Garden Schedule Config API
         server.on("/api/garden_config", HTTP_POST, [&server, &configManager]() {
             if (server.hasArg("plain")) {
-                StaticJsonDocument<1024> doc;
+                StaticJsonDocument<2048> doc;
                 DeserializationError err = deserializeJson(doc, server.arg("plain"));
                 if (!err) {
                     JsonArray arr = doc["schedules"].as<JsonArray>();
@@ -254,6 +255,7 @@ public:
                     for (uint8_t i = 0; i < count; i++) {
                         configManager.config.schedules[i].enabled = arr[i]["enabled"] | false;
                         configManager.config.schedules[i].zone = arr[i]["zone"] | 1;
+                        configManager.config.schedules[i].daysOfWeek = arr[i]["days"] | 127;
                         configManager.config.schedules[i].startHour = arr[i]["startHour"] | 0;
                         configManager.config.schedules[i].startMin = arr[i]["startMin"] | 0;
                         configManager.config.schedules[i].endHour = arr[i]["endHour"] | 0;

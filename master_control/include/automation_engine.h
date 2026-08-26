@@ -107,7 +107,10 @@ public:
             if (getLocalTime(&timeinfo, 10)) {
                 for (uint8_t i = 0; i < configManager.config.scheduleCount; i++) {
                     ScheduleSlot &slot = configManager.config.schedules[i];
-                    if (slot.enabled && timeinfo.tm_hour == slot.startHour && timeinfo.tm_min == slot.startMin) {
+                    uint8_t daysMask = (slot.daysOfWeek == 0) ? 127 : slot.daysOfWeek;
+                    bool dayMatch = (daysMask & (1 << timeinfo.tm_wday)) != 0;
+
+                    if (slot.enabled && dayMatch && timeinfo.tm_hour == slot.startHour && timeinfo.tm_min == slot.startMin) {
                         if (lastRunMinuteZ1 != (slot.startHour * 100 + slot.startMin + i)) {
                             lastRunMinuteZ1 = (slot.startHour * 100 + slot.startMin + i);
 
@@ -117,8 +120,8 @@ public:
                             if (durationMin <= 0) durationMin += 24 * 60;
 
                             if (!stateBorehole && currentError == ERR_NONE) {
-                                Serial.printf("⏰ [SCHEDULE Slot %d] Triggering Zone %d (%02d:%02d - %02d:%02d, %d min)!\n",
-                                              i + 1, slot.zone, slot.startHour, slot.startMin, slot.endHour, slot.endMin, durationMin);
+                                Serial.printf("⏰ [SCHEDULE Slot %d] Triggering Zone %d (%02d:%02d - %02d:%02d, %d min) on wday %d!\n",
+                                              i + 1, slot.zone, slot.startHour, slot.startMin, slot.endHour, slot.endMin, durationMin, timeinfo.tm_wday);
                                 HardwareController::startGardenZone(slot.zone, durationMin);
                                 break;
                             }

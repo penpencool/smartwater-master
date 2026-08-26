@@ -168,10 +168,40 @@ body {
   display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;
 }
 
+.sched-days-row {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap;
+  background: rgba(15, 23, 42, 0.4); padding: 10px 14px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.sched-days-title {
+  font-size: 0.85rem; color: #94a3b8; font-weight: 600; white-space: nowrap;
+}
+.day-chip-group {
+  display: flex; gap: 6px; flex-wrap: wrap;
+}
+.day-chip {
+  background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #94a3b8; padding: 5px 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 700;
+  cursor: pointer; transition: all 0.2s ease; user-select: none;
+}
+.day-chip:hover {
+  background: rgba(51, 65, 85, 0.9); color: #ffffff; border-color: rgba(255, 255, 255, 0.25);
+}
+.day-chip.active {
+  background: rgba(16, 185, 129, 0.25); border-color: #10b981; color: #34d399;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.35);
+}
+.day-chip.all-days {
+  padding: 5px 14px;
+}
+.day-chip.all-days.active {
+  background: rgba(2, 132, 199, 0.3); border-color: #38bdf8; color: #38bdf8;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
+}
+
 .time-picker-row {
   display: grid;
-  grid-template-columns: 1.3fr 1fr 1fr auto;
-  gap: 12px;
+  grid-template-columns: 1.2fr 1fr 0.9fr 1fr auto;
+  gap: 10px;
   align-items: flex-end;
 }
 
@@ -208,7 +238,7 @@ body {
 
 .sched-dur-badge {
   background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4);
-  color: #10b981; padding: 10px 16px; border-radius: 20px; font-size: 0.9rem; font-weight: 700;
+  color: #10b981; padding: 10px 14px; border-radius: 20px; font-size: 0.88rem; font-weight: 700;
   display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; height: 44px;
 }
 .sched-dur-badge.disabled {

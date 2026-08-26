@@ -7,6 +7,7 @@
 struct ScheduleSlot {
     bool enabled;       // เปิด/ปิด การทำงาน
     uint8_t zone;       // 1 = Zone 1 (SV3), 2 = Zone 2 (SV4)
+    uint8_t daysOfWeek; // Bitmask วัน: Bit 0=Sun(อา), Bit 1=Mon(จ), ..., Bit 6=Sat(ส), 127(0x7F)=ทุกวัน
     uint8_t startHour;  // ชั่วโมงเริ่ม (0-23)
     uint8_t startMin;   // นาทีเริ่ม (0-59)
     uint8_t endHour;    // ชั่วโมงจบ (0-23)
@@ -85,12 +86,13 @@ public:
 
         for (uint8_t i = 0; i < MAX_SCHEDULE_SLOTS; i++) {
             String prefix = "sc_" + String(i) + "_";
-            config.schedules[i].enabled   = prefs.getBool((prefix + "en").c_str(), (i == 0 || i == 1));
-            config.schedules[i].zone      = prefs.getUChar((prefix + "z").c_str(), (i == 0 ? 1 : 2));
-            config.schedules[i].startHour = prefs.getUChar((prefix + "sh").c_str(), (i == 0 ? 6 : 17));
-            config.schedules[i].startMin  = prefs.getUChar((prefix + "sm").c_str(), (i == 0 ? 30 : 0));
-            config.schedules[i].endHour   = prefs.getUChar((prefix + "eh").c_str(), (i == 0 ? 6 : 17));
-            config.schedules[i].endMin    = prefs.getUChar((prefix + "em").c_str(), (i == 0 ? 45 : 15));
+            config.schedules[i].enabled    = prefs.getBool((prefix + "en").c_str(), (i == 0 || i == 1));
+            config.schedules[i].zone       = prefs.getUChar((prefix + "z").c_str(), (i == 0 ? 1 : 2));
+            config.schedules[i].daysOfWeek = prefs.getUChar((prefix + "d").c_str(), 127);
+            config.schedules[i].startHour  = prefs.getUChar((prefix + "sh").c_str(), (i == 0 ? 6 : 17));
+            config.schedules[i].startMin   = prefs.getUChar((prefix + "sm").c_str(), (i == 0 ? 30 : 0));
+            config.schedules[i].endHour    = prefs.getUChar((prefix + "eh").c_str(), (i == 0 ? 6 : 17));
+            config.schedules[i].endMin     = prefs.getUChar((prefix + "em").c_str(), (i == 0 ? 45 : 15));
         }
 
         // Pool Top-up Configs
@@ -132,12 +134,12 @@ public:
         config.tankSafeCutoff = 25.0f;
 
         config.scheduleCount = 2;
-        // Default Slot 0: Zone 1 (06:30 - 06:45)
-        config.schedules[0] = {true, 1, 6, 30, 6, 45};
-        // Default Slot 1: Zone 2 (17:00 - 17:15)
-        config.schedules[1] = {true, 2, 17, 0, 17, 15};
+        // Default Slot 0: Zone 1 (06:30 - 06:45, ทุกวัน 127)
+        config.schedules[0] = {true, 1, 127, 6, 30, 6, 45};
+        // Default Slot 1: Zone 2 (17:00 - 17:15, ทุกวัน 127)
+        config.schedules[1] = {true, 2, 127, 17, 0, 17, 15};
         for (uint8_t i = 2; i < MAX_SCHEDULE_SLOTS; i++) {
-            config.schedules[i] = {false, 1, 8, 0, 8, 15};
+            config.schedules[i] = {false, 1, 127, 8, 0, 8, 15};
         }
 
         config.autoPoolWaveEnabled = true;
@@ -175,6 +177,7 @@ public:
             String prefix = "sc_" + String(i) + "_";
             prefs.putBool((prefix + "en").c_str(), config.schedules[i].enabled);
             prefs.putUChar((prefix + "z").c_str(), config.schedules[i].zone);
+            prefs.putUChar((prefix + "d").c_str(), config.schedules[i].daysOfWeek);
             prefs.putUChar((prefix + "sh").c_str(), config.schedules[i].startHour);
             prefs.putUChar((prefix + "sm").c_str(), config.schedules[i].startMin);
             prefs.putUChar((prefix + "eh").c_str(), config.schedules[i].endHour);
