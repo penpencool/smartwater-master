@@ -516,7 +516,7 @@ const char DASHBOARD_BODY[] PROGMEM = R"rawliteral(
         <div style="background: rgba(15, 23, 42, 0.6); padding: 12px; border-radius: 10px; margin-bottom: 14px; border: 1px solid rgba(255, 255, 255, 0.08);">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
             <span style="font-size: 0.85rem; color: var(--text-muted);">เวอร์ชันปัจจุบัน (Current Version):</span>
-            <span id="currentVerBadge" style="font-size: 0.85rem; font-weight: 700; color: #10b981;">v1.2.1 (Dual OTA Ready)</span>
+            <span id="currentVerBadge" style="font-size: 0.85rem; font-weight: 700; color: #10b981;">v1.2.11 (Dual OTA Ready)</span>
           </div>
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
             <span style="font-size: 0.85rem; color: var(--text-muted);">การใช้หน่วยความจำ Flash:</span>

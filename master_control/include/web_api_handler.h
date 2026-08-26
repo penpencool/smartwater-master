@@ -171,7 +171,7 @@ public:
             }
 
             // Firmware & GitHub Info
-            doc["firmwareVer"] = "v1.2.1";
+            doc["firmwareVer"] = "v1.2.11";
             doc["githubRepo"] = String(configManager.config.githubRepo);
 
             String response;
