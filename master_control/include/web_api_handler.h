@@ -7,6 +7,7 @@
 #include <Update.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
+#include <HTTPUpdate.h>
 
 #include "system_pins.h"
 #include "system_state.h"
@@ -766,42 +767,21 @@ public:
             client.setInsecure();
             client.setTimeout(30);
 
-            HTTPClient http;
-            http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
-            http.setTimeout(30000);
-            http.begin(client, downloadUrl);
-            http.setUserAgent("ESP32-SmartWater-Master-OTA");
+            httpUpdate.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+            httpUpdate.rebootOnUpdate(false);
 
-            int httpCode = http.GET();
-            if (httpCode != 200 && httpCode != 302 && httpCode != 301) {
-                http.end();
-                server.send(500, "application/json", "{\"error\":\"ดาวน์โหลดไฟล์จาก GitHub ไม่สำเร็จ (HTTP " + String(httpCode) + ") ตรวจสอบว่ามีไฟล์ firmware.bin ใน Release\"}");
-                return;
-            }
+            t_httpUpdate_return ret = httpUpdate.update(client, downloadUrl);
 
-            int contentLength = http.getSize();
-            if (contentLength <= 0) {
-                contentLength = 1966080;
-            }
-
-            if (!Update.begin(contentLength, U_FLASH)) {
-                http.end();
-                server.send(500, "application/json", "{\"error\":\"ไม่สามารถเริ่ม Flash OTA ได้: " + String(Update.errorString()) + "\"}");
-                return;
-            }
-
-            WiFiClient *stream = http.getStreamPtr();
-            size_t written = Update.writeStream(*stream);
-            http.end();
-
-            if (written > 0 && Update.end(true)) {
-                Serial.printf("✅ [GitHub OTA] Update Success! Written: %u bytes\n", written);
-                server.send(200, "application/json", "{\"status\":\"OK\", \"msg\":\"✅ อัปเดตเฟิร์มแวร์จาก GitHub สำเร็จ (" + String(written / 1024) + " KB) กำลังรีบูตระบบ...\"}");
+            if (ret == HTTP_UPDATE_OK) {
+                Serial.println("✅ [GitHub OTA] Update Success!");
+                server.send(200, "application/json", "{\"status\":\"OK\", \"msg\":\"✅ อัปเดตเฟิร์มแวร์จาก GitHub สำเร็จ! กำลังรีบูตระบบ...\"}");
                 delay(1000);
                 ESP.restart();
             } else {
-                Serial.printf("❌ [GitHub OTA] Update Failed! Error: %s\n", Update.errorString());
-                server.send(500, "application/json", "{\"error\":\"เขียน Flash ล้มเหลว: " + String(Update.errorString()) + "\"}");
+                int errCode = httpUpdate.getLastError();
+                String errStr = httpUpdate.getLastErrorString();
+                Serial.printf("❌ [GitHub OTA] Failed! Error (%d): %s\n", errCode, errStr.c_str());
+                server.send(500, "application/json", "{\"error\":\"อัปเดตล้มเหลว (" + String(errCode) + "): " + errStr + "\"}");
             }
         });
     }
