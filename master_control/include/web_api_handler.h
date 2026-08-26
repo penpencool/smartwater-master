@@ -753,7 +753,7 @@ public:
             }
 
             String repo = String(configManager.config.githubRepo);
-            if (repo.length() == 0) repo = "autolinkmax/smartwater-master";
+            if (repo.length() == 0) repo = "penpencool/smartwater-master";
 
             String downloadUrl = server.hasArg("url") ? server.arg("url") : ("https://github.com/" + repo + "/releases/latest/download/firmware.bin");
 

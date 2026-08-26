@@ -120,7 +120,7 @@ public:
         strncpy(config.wifiPassword, pass.c_str(), sizeof(config.wifiPassword) - 1);
         config.wifiPassword[sizeof(config.wifiPassword) - 1] = '\0';
 
-        String repo = prefs.getString("ghRepo", "autolinkmax/smartwater-master");
+        String repo = prefs.getString("ghRepo", "penpencool/smartwater-master");
         strncpy(config.githubRepo, repo.c_str(), sizeof(config.githubRepo) - 1);
         config.githubRepo[sizeof(config.githubRepo) - 1] = '\0';
     }
