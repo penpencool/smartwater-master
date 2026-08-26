@@ -1,0 +1,13 @@
+# PlatformIO & Build output
+.pio/
+.vscode/
+*.bin
+*.elf
+*.o
+*.a
+*.d
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
