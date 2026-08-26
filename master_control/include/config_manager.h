@@ -53,7 +53,7 @@ struct SystemConfig {
     char wifiPassword[64];
 
     // GitHub OTA Config
-    char githubRepo[64]; // เช่น "autolinkmax/smartwater-master"
+    char githubRepo[64]; // เช่น "penpencool/smartwater-master"
 };
 
 class ConfigManager {
@@ -159,7 +159,7 @@ public:
         config.nodeOfflineTimeoutMin = 2;
         memset(config.wifiSSID, 0, sizeof(config.wifiSSID));
         memset(config.wifiPassword, 0, sizeof(config.wifiPassword));
-        strncpy(config.githubRepo, "autolinkmax/smartwater-master", sizeof(config.githubRepo) - 1);
+        strncpy(config.githubRepo, "penpencool/smartwater-master", sizeof(config.githubRepo) - 1);
         config.githubRepo[sizeof(config.githubRepo) - 1] = '\0';
         save();
     }

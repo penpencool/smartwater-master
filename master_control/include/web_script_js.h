@@ -847,7 +847,7 @@ function startOTAUpdate() {
 function saveGithubRepo() {
   const repo = document.getElementById('githubRepoInput').value.trim();
   if (!repo || !repo.includes('/')) {
-    showNotification('กรุณาระบุชื่อ GitHub ในรูปแบบ username/repo เช่น autolinkmax/smartwater-master', 'error');
+    showNotification('กรุณาระบุชื่อ GitHub ในรูปแบบ username/repo เช่น penpencool/smartwater-master', 'error');
     return;
   }
   fetch('/api/github_config?repo=' + encodeURIComponent(repo), { method: 'POST' })
@@ -909,7 +909,7 @@ function startGithubOTA() {
   progressBox.style.display = 'block';
   progressBar.style.width = '30%';
   percentText.innerText = 'ดาวน์โหลด...';
-  statusText.innerText = '🌐 ESP32 กำลังดาวน์โหลดเฟิร์มแวร์จาก GitHub (autolinkmax)...';
+  statusText.innerText = '🌐 ESP32 กำลังดาวน์โหลดเฟิร์มแวร์จาก GitHub...';
   statusText.style.color = '#38bdf8';
   if (ghUpdateBtn) ghUpdateBtn.disabled = true;
 

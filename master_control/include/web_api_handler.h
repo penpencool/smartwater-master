@@ -170,7 +170,7 @@ public:
             }
 
             // Firmware & GitHub Info
-            doc["firmwareVer"] = "v1.2.0";
+            doc["firmwareVer"] = "v1.2.1";
             doc["githubRepo"] = String(configManager.config.githubRepo);
 
             String response;
@@ -692,7 +692,7 @@ public:
             }
 
             String repo = String(configManager.config.githubRepo);
-            if (repo.length() == 0) repo = "autolinkmax/smartwater-master";
+            if (repo.length() == 0) repo = "penpencool/smartwater-master";
 
             String apiUrl = "https://api.github.com/repos/" + repo + "/releases/latest";
             

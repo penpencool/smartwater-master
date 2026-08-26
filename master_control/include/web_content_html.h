@@ -516,11 +516,11 @@ const char DASHBOARD_BODY[] PROGMEM = R"rawliteral(
         <div style="background: rgba(15, 23, 42, 0.6); padding: 12px; border-radius: 10px; margin-bottom: 14px; border: 1px solid rgba(255, 255, 255, 0.08);">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
             <span style="font-size: 0.85rem; color: var(--text-muted);">เวอร์ชันปัจจุบัน (Current Version):</span>
-            <span id="currentVerBadge" style="font-size: 0.85rem; font-weight: 700; color: #10b981;">v1.2.0 (Dual OTA Ready)</span>
+            <span id="currentVerBadge" style="font-size: 0.85rem; font-weight: 700; color: #10b981;">v1.2.1 (Dual OTA Ready)</span>
           </div>
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
             <span style="font-size: 0.85rem; color: var(--text-muted);">การใช้หน่วยความจำ Flash:</span>
-            <span style="font-size: 0.85rem; font-weight: 700; color: #38bdf8;">~59.5% (มีพื้นที่ว่าง ~800 KB)</span>
+            <span style="font-size: 0.85rem; font-weight: 700; color: #38bdf8;">~65.8% (มีพื้นที่ว่าง ~670 KB)</span>
           </div>
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <span style="font-size: 0.85rem; color: var(--text-muted);">ความปลอดภัย:</span>
@@ -531,14 +531,14 @@ const char DASHBOARD_BODY[] PROGMEM = R"rawliteral(
         <!-- 1. GitHub Cloud Auto-Update Section -->
         <div style="background: rgba(15, 23, 42, 0.7); padding: 14px; border-radius: 10px; border: 1px solid rgba(56, 189, 248, 0.25); margin-bottom: 16px;">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-            <span style="font-size: 0.95rem; font-weight: 700; color: #38bdf8;">🌐 อัปเดตอัตโนมัติจาก GitHub (autolinkmax)</span>
+            <span style="font-size: 0.95rem; font-weight: 700; color: #38bdf8;">🌐 อัปเดตอัตโนมัติจาก GitHub Cloud</span>
             <span id="githubOnlineBadge" style="font-size: 0.75rem; color: #94a3b8;">พร้อมเชื่อมต่อ</span>
           </div>
 
           <div class="input-row" style="margin-bottom: 10px;">
             <label>GitHub Repository:</label>
             <div style="display: flex; gap: 8px;">
-              <input type="text" id="githubRepoInput" value="autolinkmax/smartwater-master" placeholder="username/repository" style="flex: 1; font-family: monospace;">
+              <input type="text" id="githubRepoInput" value="penpencool/smartwater-master" placeholder="username/repository" style="flex: 1; font-family: monospace;">
               <button class="btn" style="background: #334155; padding: 6px 14px; font-size: 0.85rem; white-space: nowrap;" onclick="saveGithubRepo()">💾 บันทึก</button>
             </div>
           </div>
