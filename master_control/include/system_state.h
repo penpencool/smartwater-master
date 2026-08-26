@@ -2,7 +2,28 @@
 #define SYSTEM_STATE_H
 
 #include <Arduino.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 #include "espnow_types.h"
+
+// ==========================================
+// Thread Safety (FreeRTOS Recursive Mutex)
+// ==========================================
+extern SemaphoreHandle_t stateMutex;
+
+class StateLock {
+public:
+    StateLock() {
+        if (stateMutex != NULL) {
+            xSemaphoreTakeRecursive(stateMutex, portMAX_DELAY);
+        }
+    }
+    ~StateLock() {
+        if (stateMutex != NULL) {
+            xSemaphoreGiveRecursive(stateMutex);
+        }
+    }
+};
 
 // ==========================================
 // System Error Codes
@@ -96,6 +117,7 @@ extern uint8_t taskQueueCount;
 class TaskQueueManager {
 public:
     static bool enqueue(TaskType type, uint8_t zone, uint16_t durationMin, const String &name, unsigned long delayMs = 0) {
+        StateLock lock;
         unsigned long targetExecTime = millis() + delayMs;
 
         // เช็คว่ามีงานชนิดเดียวกันและโซนเดียวกันในคิวอยู่แล้วหรือไม่ (เพื่อไม่อัดคิวซ้ำ)
@@ -134,6 +156,7 @@ public:
     }
 
     static bool remove(TaskType type, uint8_t zone) {
+        StateLock lock;
         for (uint8_t i = 0; i < taskQueueCount; i++) {
             if (taskQueue[i].type == type && taskQueue[i].targetZone == zone) {
                 for (uint8_t j = i; j < taskQueueCount - 1; j++) {
@@ -147,6 +170,7 @@ public:
     }
 
     static bool popReadyHighest(TaskQueueItem &outItem) {
+        StateLock lock;
         if (taskQueueCount == 0) return false;
 
         unsigned long now = millis();
@@ -165,6 +189,7 @@ public:
     }
 
     static void clear() {
+        StateLock lock;
         taskQueueCount = 0;
     }
 };

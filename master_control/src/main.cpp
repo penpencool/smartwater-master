@@ -12,6 +12,8 @@
 // ==========================================
 // 1. GLOBAL STATE DEFINITIONS
 // ==========================================
+SemaphoreHandle_t stateMutex = NULL;
+
 ErrorCode currentError = ERR_NONE;
 String activeTaskName = "";
 
@@ -83,11 +85,31 @@ WebServer server(80);
 ConfigManager configManager;
 
 // ==========================================
-// 2. SETUP (Initialization)
+// 2. CORE 0 TASK: Network & WebServer Task
+// ==========================================
+void networkTask(void *pvParameters) {
+    Serial.printf("🌐 [Core %d] Network & WebServer Task running...\n", xPortGetCoreID());
+    for (;;) {
+        // 1. Handle Web Clients
+        server.handleClient();
+
+        // 2. Handle Network, AP & NTP Heartbeats
+        SystemNetwork::handleLoop(configManager);
+
+        // Yield time to WiFi / TCP stack on Core 0
+        vTaskDelay(pdMS_TO_TICKS(5));
+    }
+}
+
+// ==========================================
+// 3. SETUP (Initialization)
 // ==========================================
 void setup() {
     Serial.begin(115200);
     delay(500);
+
+    // 0. Initialize Thread Safety Mutex
+    stateMutex = xSemaphoreCreateRecursiveMutex();
 
     // 1. Hardware Initialization
     HardwareController::init();
@@ -102,27 +124,36 @@ void setup() {
     WebApiHandler::setupRoutes(server, configManager);
     server.begin();
 
+    // 5. Create Core 0 Network & WebServer Task
+    xTaskCreatePinnedToCore(
+        networkTask,        // Task function
+        "NetworkTask",      // Task name
+        8192,               // Stack size (8KB)
+        NULL,               // Parameters
+        1,                  // Priority
+        NULL,               // Task Handle
+        0                   // Core 0 (PRO_CPU)
+    );
+
     // Startup Indicators
     HardwareController::soundBeep(2, 80);
     digitalWrite(PIN_SYS_LED, HIGH);
 
     Serial.println("==========================================");
-    Serial.println("🚀 Smart Water Master Controller is READY!");
+    Serial.println("🚀 Smart Water Master Controller (Dual Core) is READY!");
+    Serial.printf("⚙️ Core 0: Web Server & Network | Core 1: Automation Engine\n");
     Serial.println("🌐 Web Dashboard: http://192.168.4.1 or http://smartwater.local");
     Serial.println("📡 Listening for ESP-NOW sensors...");
     Serial.println("==========================================");
 }
 
 // ==========================================
-// 3. MAIN LOOP (Real-time Engine)
+// 4. MAIN LOOP (Core 1: Real-time Engine)
 // ==========================================
 void loop() {
-    // 1. Handle Web Clients
-    server.handleClient();
-
-    // 2. Handle Network, AP & NTP Heartbeats
-    SystemNetwork::handleLoop(configManager);
-
-    // 3. Handle Automated Tasks, Watchdogs & Schedules
+    // Handle Automated Tasks, Watchdogs, Interlocks & Schedules (Core 1)
     AutomationEngine::handleLoop(configManager);
+
+    // 50Hz execution cycle (20ms)
+    vTaskDelay(pdMS_TO_TICKS(20));
 }

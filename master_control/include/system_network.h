@@ -27,15 +27,18 @@ public:
 
             struct tm timeinfo;
             if (getLocalTime(&timeinfo, 5000)) {
+                StateLock lock;
                 ntpSynced = true;
                 if (currentError == ERR_NTP_SYNC) currentError = ERR_NONE;
                 Serial.printf("✅ NTP Time Synced: %02d:%02d:%02d\n", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
             } else {
+                StateLock lock;
                 ntpSynced = false;
                 currentError = ERR_NTP_SYNC;
                 Serial.println("❌ Failed to sync NTP Time!");
             }
         } else {
+            StateLock lock;
             ntpSynced = false;
             Serial.println("ℹ️ Wi-Fi not connected yet. Cannot sync NTP.");
         }
@@ -49,7 +52,10 @@ public:
                 break;
             case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
                 Serial.println("⚠️ [Wi-Fi STA] Disconnected from AP. Reconnecting...");
-                ntpSynced = false;
+                {
+                    StateLock lock;
+                    ntpSynced = false;
+                }
                 break;
             default:
                 break;
@@ -75,6 +81,7 @@ public:
             uint8_t nodeId = incomingData[0];
             String nowTime = getCurrentTimeString();
 
+            StateLock lock;
             if (nodeId == NODE_WAVE_POOL && len == sizeof(PoolNodePayload)) {
                 memcpy(&pool1Data, incomingData, sizeof(PoolNodePayload));
                 lastNode1Time = millis();

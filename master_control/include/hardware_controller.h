@@ -47,6 +47,7 @@ public:
     }
 
     static void stopAllOutputs() {
+        StateLock lock;
         stateBorehole = false;
         stateFilterPump = false;
         stateMainA = false;
@@ -74,6 +75,7 @@ public:
     }
 
     static void startFilterPump() {
+        StateLock lock;
         triggerPulse(RELAY_FILTER_ON, 400);
         stateFilterPump = true;
         filterPumpStartTime = millis();
@@ -82,6 +84,7 @@ public:
     }
 
     static void stopFilterPump() {
+        StateLock lock;
         triggerPulse(RELAY_FILTER_OFF, 400);
         stateFilterPump = false;
         flowWatchdogActive = false;
@@ -89,6 +92,7 @@ public:
     }
 
     static bool startGardenZone(uint8_t zone, uint16_t durationMin) {
+        StateLock lock;
         if (currentError != ERR_NONE) {
             Serial.printf("❌ Cannot start garden sprinkler: System in Error State (E%d)\n", currentError);
             return false;
@@ -170,6 +174,7 @@ public:
     }
 
     static void stopGardenSprinkler() {
+        StateLock lock;
         stopFilterPump();
         stateSV3 = false;
         setRelay(RELAY_SV3, false);
@@ -184,6 +189,7 @@ public:
     }
 
     static bool startPoolTopUp(uint8_t poolZone, uint16_t durationMin = 15) {
+        StateLock lock;
         if (currentError != ERR_NONE) {
             Serial.printf("❌ Cannot start pool top-up: System in Error State (E%d)\n", currentError);
             return false;
@@ -262,6 +268,7 @@ public:
     }
 
     static void stopPoolTopUp() {
+        StateLock lock;
         stopFilterPump();
         stateSV1 = false;
         setRelay(RELAY_SV1, false);

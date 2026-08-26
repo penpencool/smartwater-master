@@ -26,6 +26,7 @@ public:
 
         // 2. Real-time Status API
         server.on("/api/status", HTTP_GET, [&server, &configManager]() {
+            StateLock lock;
             StaticJsonDocument<2048> doc;
 
             doc["activeTask"] = activeTaskName;
@@ -141,7 +142,6 @@ public:
                 JsonObject sObj = schedArr.createNestedObject();
                 sObj["enabled"] = configManager.config.schedules[i].enabled;
                 sObj["zone"] = configManager.config.schedules[i].zone;
-                sObj["days"] = configManager.config.schedules[i].daysOfWeek;
                 sObj["startHour"] = configManager.config.schedules[i].startHour;
                 sObj["startMin"] = configManager.config.schedules[i].startMin;
                 sObj["endHour"] = configManager.config.schedules[i].endHour;
@@ -172,7 +172,7 @@ public:
             }
 
             // Firmware & GitHub Info
-            doc["firmwareVer"] = "v1.2.12";
+            doc["firmwareVer"] = "v1.3.0";
             doc["githubRepo"] = String(configManager.config.githubRepo);
 
             String response;
@@ -182,6 +182,7 @@ public:
 
         // 3. Pool Auto Top-Up Config API
         server.on("/api/pool_config", HTTP_POST, [&server, &configManager]() {
+            StateLock lock;
             if (server.hasArg("autoWave")) {
                 configManager.config.autoPoolWaveEnabled = (server.arg("autoWave") == "1" || server.arg("autoWave") == "true");
             }
@@ -220,6 +221,7 @@ public:
 
         // 4. Auto Borehole Config API
         server.on("/api/borehole_config", HTTP_POST, [&server, &configManager]() {
+            StateLock lock;
             if (server.hasArg("auto")) {
                 configManager.config.autoBoreholeEnabled = (server.arg("auto") == "1" || server.arg("auto") == "true");
             }
@@ -244,9 +246,10 @@ public:
         // 4b. Garden Schedule Config API
         server.on("/api/garden_config", HTTP_POST, [&server, &configManager]() {
             if (server.hasArg("plain")) {
-                StaticJsonDocument<2048> doc;
+                StaticJsonDocument<1024> doc;
                 DeserializationError err = deserializeJson(doc, server.arg("plain"));
                 if (!err) {
+                    StateLock lock;
                     JsonArray arr = doc["schedules"].as<JsonArray>();
                     uint8_t count = arr.size();
                     if (count > MAX_SCHEDULE_SLOTS) count = MAX_SCHEDULE_SLOTS;
@@ -255,7 +258,6 @@ public:
                     for (uint8_t i = 0; i < count; i++) {
                         configManager.config.schedules[i].enabled = arr[i]["enabled"] | false;
                         configManager.config.schedules[i].zone = arr[i]["zone"] | 1;
-                        configManager.config.schedules[i].daysOfWeek = arr[i]["days"] | 127;
                         configManager.config.schedules[i].startHour = arr[i]["startHour"] | 0;
                         configManager.config.schedules[i].startMin = arr[i]["startMin"] | 0;
                         configManager.config.schedules[i].endHour = arr[i]["endHour"] | 0;
@@ -305,6 +307,7 @@ public:
 
         // 6. System Parameters Config API (Offline Timeout, etc.)
         server.on("/api/system_config", HTTP_POST, [&server, &configManager]() {
+            StateLock lock;
             if (server.hasArg("nodeOffMin")) {
                 configManager.config.nodeOfflineTimeoutMin = server.arg("nodeOffMin").toInt();
                 if (configManager.config.nodeOfflineTimeoutMin < 1) configManager.config.nodeOfflineTimeoutMin = 1;
@@ -322,6 +325,7 @@ public:
                 return;
             }
 
+            StateLock lock;
             bool enable = (server.arg("enable") == "1" || server.arg("enable") == "true");
             if (enable) {
                 float level = server.hasArg("level") ? server.arg("level").toFloat() : 80.0f;
@@ -364,6 +368,7 @@ public:
                 return;
             }
 
+            StateLock lock;
             String pool = server.arg("pool");
             bool enable = (server.arg("enable") == "1" || server.arg("enable") == "true");
             bool waterLow = server.hasArg("low") ? (server.arg("low") == "1" || server.arg("low") == "true") : false;
@@ -421,11 +426,14 @@ public:
             String ssid = server.arg("ssid");
             String pass = server.hasArg("pass") ? server.arg("pass") : "";
 
-            strncpy(configManager.config.wifiSSID, ssid.c_str(), sizeof(configManager.config.wifiSSID) - 1);
-            configManager.config.wifiSSID[sizeof(configManager.config.wifiSSID) - 1] = '\0';
-            strncpy(configManager.config.wifiPassword, pass.c_str(), sizeof(configManager.config.wifiPassword) - 1);
-            configManager.config.wifiPassword[sizeof(configManager.config.wifiPassword) - 1] = '\0';
-            configManager.save();
+            {
+                StateLock lock;
+                strncpy(configManager.config.wifiSSID, ssid.c_str(), sizeof(configManager.config.wifiSSID) - 1);
+                configManager.config.wifiSSID[sizeof(configManager.config.wifiSSID) - 1] = '\0';
+                strncpy(configManager.config.wifiPassword, pass.c_str(), sizeof(configManager.config.wifiPassword) - 1);
+                configManager.config.wifiPassword[sizeof(configManager.config.wifiPassword) - 1] = '\0';
+                configManager.save();
+            }
 
             Serial.printf("Connecting to Wi-Fi SSID: %s\n", ssid.c_str());
             WiFi.disconnect(false);
@@ -442,6 +450,7 @@ public:
                 return;
             }
 
+            StateLock lock;
             String action = server.arg("action");
 
             if (action == "pump_borehole_toggle" || action == "pump_borehole_on" || action == "pump_borehole_off") {

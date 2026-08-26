@@ -16,68 +16,6 @@ function switchTab(tabId) {
   }
 }
 
-const WEEKDAYS = [
-  { bit: 1, name: 'อา' },
-  { bit: 2, name: 'จ' },
-  { bit: 4, name: 'อ' },
-  { bit: 8, name: 'พ' },
-  { bit: 16, name: 'พฤ' },
-  { bit: 32, name: 'ศ' },
-  { bit: 64, name: 'ส' }
-];
-
-function toggleScheduleDay(idx, bit) {
-  if (scheduleList[idx].days === undefined) scheduleList[idx].days = 127;
-  scheduleList[idx].days ^= bit;
-  renderSchedules();
-}
-
-function toggleScheduleAllDays(idx) {
-  if (scheduleList[idx].days === undefined) scheduleList[idx].days = 127;
-  if (scheduleList[idx].days === 127) {
-    scheduleList[idx].days = 0;
-  } else {
-    scheduleList[idx].days = 127;
-  }
-  renderSchedules();
-}
-
-function updateScheduleStart(idx, newHour, newMin) {
-  const s = scheduleList[idx];
-  let startTot = s.startHour * 60 + s.startMin;
-  let endTot = s.endHour * 60 + s.endMin;
-  let dur = endTot - startTot;
-  if (dur <= 0) dur += 1440;
-
-  s.startHour = newHour;
-  s.startMin = newMin;
-
-  // Keep duration, update end time
-  let newEndTot = (newHour * 60 + newMin + dur) % 1440;
-  s.endHour = Math.floor(newEndTot / 60);
-  s.endMin = newEndTot % 60;
-  renderSchedules();
-}
-
-function updateScheduleDuration(idx, newDur) {
-  const s = scheduleList[idx];
-  let dur = parseInt(newDur);
-  if (isNaN(dur) || dur <= 0) dur = 1;
-  if (dur > 720) dur = 720;
-
-  let newEndTot = (s.startHour * 60 + s.startMin + dur) % 1440;
-  s.endHour = Math.floor(newEndTot / 60);
-  s.endMin = newEndTot % 60;
-  renderSchedules();
-}
-
-function updateScheduleEnd(idx, newHour, newMin) {
-  const s = scheduleList[idx];
-  s.endHour = newHour;
-  s.endMin = newMin;
-  renderSchedules();
-}
-
 function renderSchedules() {
   const container = document.getElementById('scheduleContainer');
   container.innerHTML = '';
@@ -109,17 +47,6 @@ function renderSchedules() {
       startMinOptions += `<option value="${m}" ${s.startMin === m ? 'selected' : ''}>${mStr}</option>`;
       endMinOptions += `<option value="${m}" ${s.endMin === m ? 'selected' : ''}>${mStr}</option>`;
     }
-    if (s.startMin % 5 !== 0) {
-      const mStr = String(s.startMin).padStart(2, '0');
-      startMinOptions += `<option value="${s.startMin}" selected>${mStr}</option>`;
-    }
-    if (s.endMin % 5 !== 0) {
-      const mStr = String(s.endMin).padStart(2, '0');
-      endMinOptions += `<option value="${s.endMin}" selected>${mStr}</option>`;
-    }
-
-    const daysMask = (s.days !== undefined) ? s.days : 127;
-    const isAllDays = (daysMask === 127);
 
     const card = document.createElement('div');
     card.className = 'sched-card' + (s.enabled ? ' active-slot' : '');
@@ -142,17 +69,6 @@ function renderSchedules() {
         </button>
       </div>
 
-      <div class="sched-days-row">
-        <span class="sched-days-title">📅 วันทำงาน:</span>
-        <div class="day-chip-group">
-          <button type="button" class="day-chip all-days ${isAllDays ? 'active' : ''}" onclick="toggleScheduleAllDays(${idx})">ทุกวัน</button>
-          ${WEEKDAYS.map(d => {
-            const isAct = (daysMask & d.bit) !== 0;
-            return `<button type="button" class="day-chip ${isAct ? 'active' : ''}" onclick="toggleScheduleDay(${idx}, ${d.bit})">${d.name}</button>`;
-          }).join('')}
-        </div>
-      </div>
-
       <div class="time-picker-row">
         <div>
           <div class="sched-field-label">🌿 โซนรดน้ำ</div>
@@ -167,32 +83,24 @@ function renderSchedules() {
         <div>
           <div class="sched-field-label">🕒 เวลาเริ่ม (24 ชม.)</div>
           <div class="time-select-group">
-            <select onchange="updateScheduleStart(${idx}, parseInt(this.value), scheduleList[${idx}].startMin)">
+            <select onchange="scheduleList[${idx}].startHour = parseInt(this.value); renderSchedules();">
               ${startHourOptions}
             </select>
             <span class="time-select-sep">:</span>
-            <select onchange="updateScheduleStart(${idx}, scheduleList[${idx}].startHour, parseInt(this.value))">
+            <select onchange="scheduleList[${idx}].startMin = parseInt(this.value); renderSchedules();">
               ${startMinOptions}
             </select>
           </div>
         </div>
 
         <div>
-          <div class="sched-field-label">⏱️ ระยะเวลา (นาที)</div>
-          <div class="sched-input-box" style="padding: 4px 8px;">
-            <input type="number" min="1" max="360" value="${dur}" style="width: 100%; background: transparent; border: none; color: #38bdf8; font-family: monospace; font-size: 1rem; font-weight: 700; text-align: center; outline: none;" onchange="updateScheduleDuration(${idx}, this.value)">
-            <span style="font-size: 0.8rem; color: #94a3b8; padding-right: 4px;">นาที</span>
-          </div>
-        </div>
-
-        <div>
           <div class="sched-field-label">🕒 เวลาจบ (24 ชม.)</div>
           <div class="time-select-group">
-            <select onchange="updateScheduleEnd(${idx}, parseInt(this.value), scheduleList[${idx}].endMin)">
+            <select onchange="scheduleList[${idx}].endHour = parseInt(this.value); renderSchedules();">
               ${endHourOptions}
             </select>
             <span class="time-select-sep">:</span>
-            <select onchange="updateScheduleEnd(${idx}, scheduleList[${idx}].endHour, parseInt(this.value))">
+            <select onchange="scheduleList[${idx}].endMin = parseInt(this.value); renderSchedules();">
               ${endMinOptions}
             </select>
           </div>
@@ -219,7 +127,6 @@ function addScheduleSlot() {
   scheduleList.push({
     enabled: true,
     zone: 1,
-    days: 127,
     startHour: 6,
     startMin: 0,
     endHour: 6,
