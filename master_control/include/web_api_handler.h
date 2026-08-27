@@ -130,6 +130,17 @@ public:
             doc["poolPlayDelay"] = configManager.config.poolPlayDelayMin;
             doc["poolPlayDur"] = configManager.config.poolPlayDurationMin;
 
+            // 💧 Independent Zone Water Level Thresholds (%)
+            doc["gZ1Start"] = configManager.config.gardenZ1StartLevel;
+            doc["gZ1Stop"]  = configManager.config.gardenZ1StopLevel;
+            doc["gZ2Start"] = configManager.config.gardenZ2StartLevel;
+            doc["gZ2Stop"]  = configManager.config.gardenZ2StopLevel;
+
+            doc["pWStart"]  = configManager.config.poolWaveStartLevel;
+            doc["pWStop"]   = configManager.config.poolWaveStopLevel;
+            doc["pPStart"]  = configManager.config.poolPlayStartLevel;
+            doc["pPStop"]   = configManager.config.poolPlayStopLevel;
+
             // Auto Borehole Refill Thresholds
             doc["autoBorehole"] = configManager.config.autoBoreholeEnabled;
             doc["tankLowTrigger"] = configManager.config.tankLowTrigger;
@@ -180,7 +191,7 @@ public:
             server.send(200, "application/json", response);
         });
 
-        // 3. Pool Auto Top-Up Config API
+        // 3. Pool Auto Top-Up & Water Threshold Config API
         server.on("/api/pool_config", HTTP_POST, [&server, &configManager]() {
             StateLock lock;
             if (server.hasArg("autoWave")) {
@@ -195,6 +206,12 @@ public:
             if (server.hasArg("waveDur")) {
                 configManager.config.poolWaveDurationMin = server.arg("waveDur").toInt();
             }
+            if (server.hasArg("pWStart")) {
+                configManager.config.poolWaveStartLevel = server.arg("pWStart").toFloat();
+            }
+            if (server.hasArg("pWStop")) {
+                configManager.config.poolWaveStopLevel = server.arg("pWStop").toFloat();
+            }
 
             if (server.hasArg("autoPlay")) {
                 configManager.config.autoPoolPlayEnabled = (server.arg("autoPlay") == "1" || server.arg("autoPlay") == "true");
@@ -208,15 +225,49 @@ public:
             if (server.hasArg("playDur")) {
                 configManager.config.poolPlayDurationMin = server.arg("playDur").toInt();
             }
+            if (server.hasArg("pPStart")) {
+                configManager.config.poolPlayStartLevel = server.arg("pPStart").toFloat();
+            }
+            if (server.hasArg("pPStop")) {
+                configManager.config.poolPlayStopLevel = server.arg("pPStop").toFloat();
+            }
 
             configManager.save();
             HardwareController::soundBeep(1, 100);
 
-            Serial.printf("⚙️ Updated Pool Config: Wave[Auto=%d, Mode=%d, Delay=%dm, Dur=%dm], Play[Auto=%d, Mode=%d, Delay=%dm, Dur=%dm]\n",
+            Serial.printf("⚙️ Updated Pool Config: Wave[Auto=%d, Mode=%d, Delay=%dm, Dur=%dm, Start=%.1f%%, Stop=%.1f%%], Play[Auto=%d, Mode=%d, Delay=%dm, Dur=%dm, Start=%.1f%%, Stop=%.1f%%]\n",
                           configManager.config.autoPoolWaveEnabled, configManager.config.poolModeWave, configManager.config.poolWaveDelayMin, configManager.config.poolWaveDurationMin,
-                          configManager.config.autoPoolPlayEnabled, configManager.config.poolModePlay, configManager.config.poolPlayDelayMin, configManager.config.poolPlayDurationMin);
+                          configManager.config.poolWaveStartLevel, configManager.config.poolWaveStopLevel,
+                          configManager.config.autoPoolPlayEnabled, configManager.config.poolModePlay, configManager.config.poolPlayDelayMin, configManager.config.poolPlayDurationMin,
+                          configManager.config.poolPlayStartLevel, configManager.config.poolPlayStopLevel);
 
-            server.send(200, "application/json", "{\"msg\":\"✅ บันทึกการตั้งค่าระดับสระว่ายน้ำอัตโนมัติเรียบร้อย\"}");
+            server.send(200, "application/json", "{\"msg\":\"✅ บันทึกการตั้งค่าระดับสระว่ายน้ำและเกณฑ์แทงค์น้ำเรียบร้อย\"}");
+        });
+
+        // 3b. Garden Water Thresholds Config API
+        server.on("/api/garden_thresholds", HTTP_POST, [&server, &configManager]() {
+            StateLock lock;
+            if (server.hasArg("gZ1Start")) {
+                configManager.config.gardenZ1StartLevel = server.arg("gZ1Start").toFloat();
+            }
+            if (server.hasArg("gZ1Stop")) {
+                configManager.config.gardenZ1StopLevel = server.arg("gZ1Stop").toFloat();
+            }
+            if (server.hasArg("gZ2Start")) {
+                configManager.config.gardenZ2StartLevel = server.arg("gZ2Start").toFloat();
+            }
+            if (server.hasArg("gZ2Stop")) {
+                configManager.config.gardenZ2StopLevel = server.arg("gZ2Stop").toFloat();
+            }
+
+            configManager.save();
+            HardwareController::soundBeep(1, 100);
+
+            Serial.printf("⚙️ Updated Garden Thresholds: Zone1[Start=%.1f%%, Stop=%.1f%%], Zone2[Start=%.1f%%, Stop=%.1f%%]\n",
+                          configManager.config.gardenZ1StartLevel, configManager.config.gardenZ1StopLevel,
+                          configManager.config.gardenZ2StartLevel, configManager.config.gardenZ2StopLevel);
+
+            server.send(200, "application/json", "{\"msg\":\"✅ บันทึกเกณฑ์ระดับน้ำรดน้ำต้นไม้เรียบร้อย\"}");
         });
 
         // 4. Auto Borehole Config API

@@ -294,6 +294,17 @@ function updateData() {
         document.getElementById('poolPlayDelay').value = data.poolPlayDelay || 5;
         document.getElementById('poolPlayDur').value = data.poolPlayDur || 15;
 
+        // 💧 Garden & Pool Water Level Thresholds
+        if (data.gZ1Start !== undefined) document.getElementById('gZ1Start').value = data.gZ1Start;
+        if (data.gZ1Stop !== undefined) document.getElementById('gZ1Stop').value = data.gZ1Stop;
+        if (data.gZ2Start !== undefined) document.getElementById('gZ2Start').value = data.gZ2Start;
+        if (data.gZ2Stop !== undefined) document.getElementById('gZ2Stop').value = data.gZ2Stop;
+
+        if (data.pWStart !== undefined) document.getElementById('pWStart').value = data.pWStart;
+        if (data.pWStop !== undefined) document.getElementById('pWStop').value = data.pWStop;
+        if (data.pPStart !== undefined) document.getElementById('pPStart').value = data.pPStart;
+        if (data.pPStop !== undefined) document.getElementById('pPStop').value = data.pPStop;
+
         // System Parameters
         if (data.nodeOfflineTimeoutMin !== undefined) {
           document.getElementById('nodeOfflineTimeoutMin').value = data.nodeOfflineTimeoutMin;
@@ -647,26 +658,52 @@ function sendPoolCommand(poolType) {
   });
 }
 
+function saveGardenThresholds() {
+  const gZ1Start = parseFloat(document.getElementById('gZ1Start').value);
+  const gZ1Stop = parseFloat(document.getElementById('gZ1Stop').value);
+  const gZ2Start = parseFloat(document.getElementById('gZ2Start').value);
+  const gZ2Stop = parseFloat(document.getElementById('gZ2Stop').value);
+
+  if (isNaN(gZ1Start) || isNaN(gZ1Stop) || isNaN(gZ2Start) || isNaN(gZ2Stop) || gZ1Start <= gZ1Stop || gZ2Start <= gZ2Stop) {
+    showNotification('กรุณาระบุเปอร์เซ็นต์ระดับน้ำให้ถูกต้อง (เกณฑ์เริ่ม ต้องมากกว่า เกณฑ์หยุดพัก)', 'error');
+    return;
+  }
+
+  const url = `/api/garden_thresholds?gZ1Start=${gZ1Start}&gZ1Stop=${gZ1Stop}&gZ2Start=${gZ2Start}&gZ2Stop=${gZ2Stop}`;
+  fetch(url, { method: 'POST' })
+    .then(res => res.json())
+    .then(res => showNotification(res.msg || 'บันทึกเกณฑ์ระดับน้ำรดน้ำสำเร็จ', 'success'))
+    .catch(err => showNotification('เกิดข้อผิดพลาด: ' + err, 'error'));
+}
+
 function savePoolSettings() {
   const autoWave = document.getElementById('autoPoolWaveSelect').value;
   const poolModeWave = document.getElementById('poolModeWave').value;
   const waveDelay = parseInt(document.getElementById('poolWaveDelay').value);
   const waveDur = parseInt(document.getElementById('poolWaveDur').value);
+  const pWStart = parseFloat(document.getElementById('pWStart').value);
+  const pWStop = parseFloat(document.getElementById('pWStop').value);
 
   const autoPlay = document.getElementById('autoPoolPlaySelect').value;
   const poolModePlay = document.getElementById('poolModePlay').value;
   const playDelay = parseInt(document.getElementById('poolPlayDelay').value);
   const playDur = parseInt(document.getElementById('poolPlayDur').value);
+  const pPStart = parseFloat(document.getElementById('pPStart').value);
+  const pPStop = parseFloat(document.getElementById('pPStop').value);
 
   if (isNaN(waveDelay) || isNaN(waveDur) || isNaN(playDelay) || isNaN(playDur) || waveDur <= 0 || playDur <= 0) {
     showNotification('กรุณาระบุตัวเลขหน่วงเวลาและระยะเวลาเติมน้ำให้ถูกต้อง', 'error');
     return;
   }
+  if (isNaN(pWStart) || isNaN(pWStop) || isNaN(pPStart) || isNaN(pPStop) || pWStart <= pWStop || pPStart <= pPStop) {
+    showNotification('กรุณาระบุเปอร์เซ็นต์เกณฑ์น้ำในแทงค์ให้ถูกต้อง (เกณฑ์เริ่ม ต้องมากกว่า เกณฑ์หยุดพัก)', 'error');
+    return;
+  }
 
-  const url = `/api/pool_config?autoWave=${autoWave}&poolModeWave=${poolModeWave}&waveDelay=${waveDelay}&waveDur=${waveDur}&autoPlay=${autoPlay}&poolModePlay=${poolModePlay}&playDelay=${playDelay}&playDur=${playDur}`;
+  const url = `/api/pool_config?autoWave=${autoWave}&poolModeWave=${poolModeWave}&waveDelay=${waveDelay}&waveDur=${waveDur}&pWStart=${pWStart}&pWStop=${pWStop}&autoPlay=${autoPlay}&poolModePlay=${poolModePlay}&playDelay=${playDelay}&playDur=${playDur}&pPStart=${pPStart}&pPStop=${pPStop}`;
   fetch(url, { method: 'POST' })
     .then(res => res.json())
-    .then(res => showNotification(res.msg || 'บันทึกการตั้งค่าสระว่ายน้ำสำเร็จ', 'success'))
+    .then(res => showNotification(res.msg || 'บันทึกการตั้งค่าสระว่ายน้ำและเกณฑ์แทงค์น้ำสำเร็จ', 'success'))
     .catch(err => showNotification('เกิดข้อผิดพลาด: ' + err, 'error'));
 }
 

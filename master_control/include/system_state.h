@@ -188,6 +188,17 @@ public:
         return false;
     }
 
+    static bool popAtIndex(uint8_t index, TaskQueueItem &outItem) {
+        StateLock lock;
+        if (index >= taskQueueCount) return false;
+        outItem = taskQueue[index];
+        for (uint8_t j = index; j < taskQueueCount - 1; j++) {
+            taskQueue[j] = taskQueue[j + 1];
+        }
+        taskQueueCount--;
+        return true;
+    }
+
     static void clear() {
         StateLock lock;
         taskQueueCount = 0;

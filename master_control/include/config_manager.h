@@ -25,6 +25,17 @@ struct SystemConfig {
     float tankEmptyCm;          // ระยะแทงค์แห้ง 0% (เช่น 180.0 cm)
     float tankFullCm;           // ระยะแทงค์เต็ม 100% (เช่น 25.0 cm)
 
+    // 💧 Independent Water Level Start & Stop Thresholds for Each Zone (%)
+    float gardenZ1StartLevel;    // ระดับน้ำในแทงค์ขั้นต่ำที่จะยอมให้เริ่มรดน้ำ Zone 1 (%) (เช่น 50%)
+    float gardenZ1StopLevel;     // ระดับน้ำในแทงค์ขั้นต่ำสุดที่ต้องตัดหยุดพัก Zone 1 (%) (เช่น 25%)
+    float gardenZ2StartLevel;    // ระดับน้ำในแทงค์ขั้นต่ำที่จะยอมให้เริ่มรดน้ำ Zone 2 (%) (เช่น 50%)
+    float gardenZ2StopLevel;     // ระดับน้ำในแทงค์ขั้นต่ำสุดที่ต้องตัดหยุดพัก Zone 2 (%) (เช่น 25%)
+
+    float poolWaveStartLevel;    // ระดับน้ำในแทงค์ขั้นต่ำที่จะยอมให้เริ่มเติมสระคลื่น (%) (เช่น 40%)
+    float poolWaveStopLevel;     // ระดับน้ำในแทงค์ขั้นต่ำสุดที่ต้องตัดหยุดพักสระคลื่น (%) (เช่น 20%)
+    float poolPlayStartLevel;    // ระดับน้ำในแทงค์ขั้นต่ำที่จะยอมให้เริ่มเติมสระเล่น (%) (เช่น 40%)
+    float poolPlayStopLevel;     // ระดับน้ำในแทงค์ขั้นต่ำสุดที่ต้องตัดหยุดพักสระเล่น (%) (เช่น 20%)
+
     // Dynamic Garden Schedules (Smart Home style Start Time - End Time)
     uint8_t scheduleCount;
     ScheduleSlot schedules[MAX_SCHEDULE_SLOTS];
@@ -85,6 +96,17 @@ public:
         config.tankEmptyCm      = prefs.getFloat("tankEmpty", 180.0f);
         config.tankFullCm       = prefs.getFloat("tankFull_cm", 25.0f);
 
+        // 💧 Load Independent Water Level Thresholds
+        config.gardenZ1StartLevel = prefs.getFloat("gZ1St", 50.0f);
+        config.gardenZ1StopLevel  = prefs.getFloat("gZ1Sp", 25.0f);
+        config.gardenZ2StartLevel = prefs.getFloat("gZ2St", 50.0f);
+        config.gardenZ2StopLevel  = prefs.getFloat("gZ2Sp", 25.0f);
+
+        config.poolWaveStartLevel = prefs.getFloat("pWSt", 40.0f);
+        config.poolWaveStopLevel  = prefs.getFloat("pWSp", 20.0f);
+        config.poolPlayStartLevel = prefs.getFloat("pPSt", 40.0f);
+        config.poolPlayStopLevel  = prefs.getFloat("pPSp", 20.0f);
+
         // Load Dynamic Schedules
         config.scheduleCount = prefs.getUChar("schedCount", 2);
         if (config.scheduleCount > MAX_SCHEDULE_SLOTS) config.scheduleCount = MAX_SCHEDULE_SLOTS;
@@ -140,6 +162,17 @@ public:
         config.tankEmptyCm = 180.0f;
         config.tankFullCm = 25.0f;
 
+        // 💧 Defaults for Independent Water Level Thresholds
+        config.gardenZ1StartLevel = 50.0f;
+        config.gardenZ1StopLevel  = 25.0f;
+        config.gardenZ2StartLevel = 50.0f;
+        config.gardenZ2StopLevel  = 25.0f;
+
+        config.poolWaveStartLevel = 40.0f;
+        config.poolWaveStopLevel  = 20.0f;
+        config.poolPlayStartLevel = 40.0f;
+        config.poolPlayStopLevel  = 20.0f;
+
         config.scheduleCount = 2;
         // Default Slot 0: Zone 1 (06:30 - 06:45)
         config.schedules[0] = {true, 1, 6, 30, 6, 45};
@@ -181,6 +214,17 @@ public:
         prefs.putFloat("tankSafe", config.tankSafeCutoff);
         prefs.putFloat("tankEmpty", config.tankEmptyCm);
         prefs.putFloat("tankFull_cm", config.tankFullCm);
+
+        // 💧 Save Independent Water Level Thresholds
+        prefs.putFloat("gZ1St", config.gardenZ1StartLevel);
+        prefs.putFloat("gZ1Sp", config.gardenZ1StopLevel);
+        prefs.putFloat("gZ2St", config.gardenZ2StartLevel);
+        prefs.putFloat("gZ2Sp", config.gardenZ2StopLevel);
+
+        prefs.putFloat("pWSt", config.poolWaveStartLevel);
+        prefs.putFloat("pWSp", config.poolWaveStopLevel);
+        prefs.putFloat("pPSt", config.poolPlayStartLevel);
+        prefs.putFloat("pPSp", config.poolPlayStopLevel);
 
         prefs.putUChar("schedCount", config.scheduleCount);
         for (uint8_t i = 0; i < MAX_SCHEDULE_SLOTS; i++) {

@@ -118,6 +118,14 @@ public:
             soundBeep(3, 200);
             return false;
         }
+
+        // 💧 ตรวจสอบเกณฑ์ระดับน้ำเริ่มต้นของแต่ละโซนรดน้ำ (Zone 1 / Zone 2)
+        float startThreshold = (zone == 1) ? configManager.config.gardenZ1StartLevel : configManager.config.gardenZ2StartLevel;
+        if (tankData.waterLevelPercent < startThreshold && tankData.waterLevelPercent > 0.0f) {
+            Serial.printf("⚠️ Cannot start Garden Zone %d: Tank Water Level (%.1f%%) < Required Start Level (%.1f%%)!\n",
+                          zone, tankData.waterLevelPercent, startThreshold);
+            return false;
+        }
         if (tankData.waterLevelPercent <= configManager.config.tankSafeCutoff && tankData.waterLevelPercent > 0.0f) {
             Serial.println("❌ Cannot start garden sprinkler: Tank Water Level Critically Low! Aborting.");
             currentError = ERR_TANK_DRY;
@@ -213,6 +221,14 @@ public:
             Serial.println("❌ Cannot start pool top-up: Node 3 Tank Sensor Offline! Aborting for safety.");
             currentError = ERR_NODE_LOST;
             soundBeep(3, 200);
+            return false;
+        }
+
+        // 💧 ตรวจสอบเกณฑ์ระดับน้ำเริ่มต้นของแต่ละสระ (Wave Pool / Play Pool)
+        float startThreshold = (poolZone == 1) ? configManager.config.poolWaveStartLevel : configManager.config.poolPlayStartLevel;
+        if (tankData.waterLevelPercent < startThreshold && tankData.waterLevelPercent > 0.0f) {
+            Serial.printf("⚠️ Cannot start Pool Top-up (Zone %d): Tank Water Level (%.1f%%) < Required Start Level (%.1f%%)!\n",
+                          poolZone, tankData.waterLevelPercent, startThreshold);
             return false;
         }
         if (tankData.waterLevelPercent <= configManager.config.tankSafeCutoff && tankData.waterLevelPercent > 0.0f) {

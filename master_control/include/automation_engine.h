@@ -142,9 +142,16 @@ public:
                             if (durationMin <= 0) durationMin += 24 * 60;
 
                             if (!stateBorehole && currentError == ERR_NONE) {
-                                Serial.printf("⏰ [SCHEDULE Slot %d] Triggering Zone %d (%02d:%02d - %02d:%02d, %d min)!\n",
-                                              i + 1, slot.zone, slot.startHour, slot.startMin, slot.endHour, slot.endMin, durationMin);
-                                HardwareController::startGardenZone(slot.zone, durationMin);
+                                float startThreshold = (slot.zone == 1) ? configManager.config.gardenZ1StartLevel : configManager.config.gardenZ2StartLevel;
+                                if (tankData.waterLevelPercent >= startThreshold || tankData.waterLevelPercent <= 0.0f) {
+                                    Serial.printf("⏰ [SCHEDULE Slot %d] Triggering Zone %d (%02d:%02d - %02d:%02d, %d min)!\n",
+                                                  i + 1, slot.zone, slot.startHour, slot.startMin, slot.endHour, slot.endMin, durationMin);
+                                    HardwareController::startGardenZone(slot.zone, durationMin);
+                                } else {
+                                    Serial.printf("⏰ [SCHEDULE Slot %d] Tank level (%.1f%%) < Start threshold (%.1f%%) -> Queued Zone %d for auto-start when filled.\n",
+                                                  i + 1, tankData.waterLevelPercent, startThreshold, slot.zone);
+                                    TaskQueueManager::enqueue(TASK_GARDEN_AUTO, slot.zone, durationMin, "รดน้ำโซน " + String(slot.zone) + " (ตามตาราง - รอน้ำถึง " + String((int)startThreshold) + "%)");
+                                }
                                 break;
                             }
                         }
@@ -153,15 +160,63 @@ public:
             }
         }
 
-        // 3. Flow Switch Watchdog & Live Tank Safety Check
+        // 3. Flow Switch Watchdog & Live Tank Safety Check with Smart Zone Cutoff / Auto-Pause
         if (stateFilterPump) {
-            // หากกำลังปั๊มน้ำออกอยู่แล้วพบว่า Node 3 หลุด หรือน้ำในแทงค์ต่ำวิกฤต -> ตัดปั๊มทันทีเพื่อป้องกันปั๊มรันแห้ง
+            // หากกำลังปั๊มน้ำออกอยู่แล้วพบว่า Node 3 หลุด -> ตัดปั๊มทันทีเพื่อความปลอดภัย
             if (isNode3Offline) {
                 HardwareController::stopAllOutputs();
                 currentError = ERR_NODE_LOST;
                 HardwareController::soundBeep(3, 200);
                 Serial.println("❌ ERROR: Node 3 Tank Sensor lost during pumping! Emergency shutoff.");
-            } else if (tankData.waterLevelPercent <= configManager.config.tankSafeCutoff && tankData.waterLevelPercent > 0.0f) {
+            }
+            // 💧 ตรวจสอบเกณฑ์หยุดพักของการรดน้ำ Zone 1
+            else if (currentGardenZone == 1 && tankData.waterLevelPercent <= configManager.config.gardenZ1StopLevel && tankData.waterLevelPercent > 0.0f) {
+                unsigned long elapsed = millis() - gardenTaskStartTime;
+                uint16_t remMin = (elapsed < gardenTaskDurationMs) ? ((gardenTaskDurationMs - elapsed) / 60000UL) : 0;
+                if (remMin == 0) remMin = 1;
+                TaskQueueManager::enqueue(TASK_GARDEN_AUTO, 1, remMin, "รดน้ำโซน 1 (พักรอน้ำในแทงค์ถึง " + String((int)configManager.config.gardenZ1StartLevel) + "%)");
+                Serial.printf("⏸️ [AUTO PAUSE] Tank level (%.1f%%) <= Stop threshold (%.1f%%) -> Paused Zone 1, rem %d min. Waiting for borehole refill to %.1f%%.\n",
+                              tankData.waterLevelPercent, configManager.config.gardenZ1StopLevel, remMin, configManager.config.gardenZ1StartLevel);
+                HardwareController::stopGardenSprinkler();
+                HardwareController::soundBeep(2, 150);
+            }
+            // 💧 ตรวจสอบเกณฑ์หยุดพักของการรดน้ำ Zone 2
+            else if (currentGardenZone == 2 && tankData.waterLevelPercent <= configManager.config.gardenZ2StopLevel && tankData.waterLevelPercent > 0.0f) {
+                unsigned long elapsed = millis() - gardenTaskStartTime;
+                uint16_t remMin = (elapsed < gardenTaskDurationMs) ? ((gardenTaskDurationMs - elapsed) / 60000UL) : 0;
+                if (remMin == 0) remMin = 1;
+                TaskQueueManager::enqueue(TASK_GARDEN_AUTO, 2, remMin, "รดน้ำโซน 2 (พักรอน้ำในแทงค์ถึง " + String((int)configManager.config.gardenZ2StartLevel) + "%)");
+                Serial.printf("⏸️ [AUTO PAUSE] Tank level (%.1f%%) <= Stop threshold (%.1f%%) -> Paused Zone 2, rem %d min. Waiting for borehole refill to %.1f%%.\n",
+                              tankData.waterLevelPercent, configManager.config.gardenZ2StopLevel, remMin, configManager.config.gardenZ2StartLevel);
+                HardwareController::stopGardenSprinkler();
+                HardwareController::soundBeep(2, 150);
+            }
+            // 💧 ตรวจสอบเกณฑ์หยุดพักของการเติมน้ำสระคลื่น (Wave Pool - SV1)
+            else if (currentPoolTaskZone == 1 && tankData.waterLevelPercent <= configManager.config.poolWaveStopLevel && tankData.waterLevelPercent > 0.0f) {
+                unsigned long elapsed = millis() - poolTaskStartTime;
+                uint16_t remMin = (elapsed < poolTaskDurationMs) ? ((poolTaskDurationMs - elapsed) / 60000UL) : 0;
+                if (remMin == 0) remMin = 1;
+                TaskType pType = isManualPoolTask ? TASK_POOL_MANUAL : TASK_POOL_AUTO;
+                TaskQueueManager::enqueue(pType, 1, remMin, "เติมสระคลื่น (พักรอน้ำในแทงค์ถึง " + String((int)configManager.config.poolWaveStartLevel) + "%)");
+                Serial.printf("⏸️ [AUTO PAUSE] Tank level (%.1f%%) <= Stop threshold (%.1f%%) -> Paused Wave Pool, rem %d min. Waiting for borehole refill to %.1f%%.\n",
+                              tankData.waterLevelPercent, configManager.config.poolWaveStopLevel, remMin, configManager.config.poolWaveStartLevel);
+                HardwareController::stopPoolTopUp();
+                HardwareController::soundBeep(2, 150);
+            }
+            // 💧 ตรวจสอบเกณฑ์หยุดพักของการเติมน้ำสระเล่น (Play Pool - SV2)
+            else if (currentPoolTaskZone == 2 && tankData.waterLevelPercent <= configManager.config.poolPlayStopLevel && tankData.waterLevelPercent > 0.0f) {
+                unsigned long elapsed = millis() - poolTaskStartTime;
+                uint16_t remMin = (elapsed < poolTaskDurationMs) ? ((poolTaskDurationMs - elapsed) / 60000UL) : 0;
+                if (remMin == 0) remMin = 1;
+                TaskType pType = isManualPoolTask ? TASK_POOL_MANUAL : TASK_POOL_AUTO;
+                TaskQueueManager::enqueue(pType, 2, remMin, "เติมสระเล่น (พักรอน้ำในแทงค์ถึง " + String((int)configManager.config.poolPlayStartLevel) + "%)");
+                Serial.printf("⏸️ [AUTO PAUSE] Tank level (%.1f%%) <= Stop threshold (%.1f%%) -> Paused Play Pool, rem %d min. Waiting for borehole refill to %.1f%%.\n",
+                              tankData.waterLevelPercent, configManager.config.poolPlayStopLevel, remMin, configManager.config.poolPlayStartLevel);
+                HardwareController::stopPoolTopUp();
+                HardwareController::soundBeep(2, 150);
+            }
+            // 🛡️ Hard Dry-Run Cutoff ทั่วไป (เช่น Tank Safe Cutoff)
+            else if (tankData.waterLevelPercent <= configManager.config.tankSafeCutoff && tankData.waterLevelPercent > 0.0f) {
                 HardwareController::stopAllOutputs();
                 currentError = ERR_TANK_DRY;
                 HardwareController::soundBeep(3, 200);
@@ -254,18 +309,34 @@ public:
             }
         }
 
-        // 6. 🚀 Priority Task Queue Dispatcher (ประมวลผลคิวตามลำดับความสำคัญเมื่อระบบว่าง และถึงเวลา execute)
+        // 6. 🚀 Priority Task Queue Dispatcher (ประมวลผลคิวตามลำดับความสำคัญเมื่อระบบว่าง และระดับน้ำถึงเกณฑ์เริ่ม)
         if (currentGardenZone == 0 && currentPoolTaskZone == 0 && !stateBorehole && currentError == ERR_NONE) {
             TaskQueueItem nextTask;
-            if (TaskQueueManager::popReadyHighest(nextTask)) {
-                Serial.printf("🎯 [QUEUE DISPATCH] Executing next highest priority task: %s (Type %d, Zone %d, %d min)\n",
-                              nextTask.taskName.c_str(), nextTask.type, nextTask.targetZone, nextTask.durationMin);
+            for (uint8_t i = 0; i < taskQueueCount; i++) {
+                if (millis() >= taskQueue[i].executeAtMillis) {
+                    float reqStart = 0.0f;
+                    if (taskQueue[i].type == TASK_GARDEN_MANUAL || taskQueue[i].type == TASK_GARDEN_AUTO) {
+                        reqStart = (taskQueue[i].targetZone == 1) ? configManager.config.gardenZ1StartLevel : configManager.config.gardenZ2StartLevel;
+                    } else if (taskQueue[i].type == TASK_POOL_MANUAL || taskQueue[i].type == TASK_POOL_AUTO) {
+                        reqStart = (taskQueue[i].targetZone == 1) ? configManager.config.poolWaveStartLevel : configManager.config.poolPlayStartLevel;
+                    }
 
-                if (nextTask.type == TASK_GARDEN_MANUAL || nextTask.type == TASK_GARDEN_AUTO) {
-                    HardwareController::startGardenZone(nextTask.targetZone, nextTask.durationMin);
-                } else if (nextTask.type == TASK_POOL_MANUAL || nextTask.type == TASK_POOL_AUTO) {
-                    isManualPoolTask = (nextTask.type == TASK_POOL_MANUAL);
-                    HardwareController::startPoolTopUp(nextTask.targetZone, nextTask.durationMin);
+                    // ถ้าน้ำในแทงค์ถึงเกณฑ์ที่กำหนด ให้ดึงงานไปทำงานทันที
+                    if (tankData.waterLevelPercent >= reqStart || tankData.waterLevelPercent <= 0.0f) {
+                        if (TaskQueueManager::popAtIndex(i, nextTask)) {
+                            Serial.printf("🎯 [QUEUE DISPATCH] Executing task: %s (Type %d, Zone %d, %d min) [Tank %.1f%% >= Req %.1f%%]\n",
+                                          nextTask.taskName.c_str(), nextTask.type, nextTask.targetZone, nextTask.durationMin,
+                                          tankData.waterLevelPercent, reqStart);
+
+                            if (nextTask.type == TASK_GARDEN_MANUAL || nextTask.type == TASK_GARDEN_AUTO) {
+                                HardwareController::startGardenZone(nextTask.targetZone, nextTask.durationMin);
+                            } else if (nextTask.type == TASK_POOL_MANUAL || nextTask.type == TASK_POOL_AUTO) {
+                                isManualPoolTask = (nextTask.type == TASK_POOL_MANUAL);
+                                HardwareController::startPoolTopUp(nextTask.targetZone, nextTask.durationMin);
+                            }
+                            break;
+                        }
+                    }
                 }
             }
         }

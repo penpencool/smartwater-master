@@ -221,6 +221,49 @@ const char DASHBOARD_BODY[] PROGMEM = R"rawliteral(
   <!-- ================= TAB 2: GARDEN SCHEDULER ================= -->
   <div id="tab-garden" class="tab-pane">
     <div class="grid">
+      <!-- Garden Water Thresholds Config Card -->
+      <div class="card" style="grid-column: span 2; border: 1.5px solid rgba(52, 211, 153, 0.4); background: linear-gradient(135deg, rgba(15, 23, 42, 0.85), rgba(6, 78, 59, 0.25));">
+        <div class="card-title">
+          <span>💧 เกณฑ์ระดับน้ำในแทงค์สำหรับการรดน้ำ (Water Thresholds)</span>
+          <span style="font-size: 0.8rem; color: #34d399;">แยกอิสระแต่ละโซน</span>
+        </div>
+        <div style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 14px;">
+          กำหนดระดับน้ำในแทงค์ (%) ที่ต้องมีก่อนเริ่มรดน้ำ และหากรดน้ำอยู่น้ำลดต่ำกว่าเกณฑ์หยุด ระบบจะพักงานไว้ ปั๊มบาดาลจะเติมน้ำจนถึงเกณฑ์เริ่ม จึงจะกลับมารดน้ำต่อตามเวลาที่เหลือโดยอัตโนมัติ
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
+          <!-- Zone 1 Thresholds -->
+          <div style="background: rgba(15, 23, 42, 0.6); padding: 14px; border-radius: 10px; border: 1px solid rgba(52, 211, 153, 0.3);">
+            <div style="font-weight: 700; color: #34d399; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+              <span>🌿 โซน 1 (SV3)</span>
+            </div>
+            <div class="input-row">
+              <label>ระดับน้ำขั้นต่ำที่จะเริ่มรด (%):</label>
+              <input type="number" id="gZ1Start" min="5" max="100" placeholder="เช่น 50 (%)">
+            </div>
+            <div class="input-row">
+              <label>ระดับน้ำที่จะตัดหยุดพัก (%):</label>
+              <input type="number" id="gZ1Stop" min="5" max="95" placeholder="เช่น 25 (%)">
+            </div>
+          </div>
+
+          <!-- Zone 2 Thresholds -->
+          <div style="background: rgba(15, 23, 42, 0.6); padding: 14px; border-radius: 10px; border: 1px solid rgba(52, 211, 153, 0.3);">
+            <div style="font-weight: 700; color: #34d399; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+              <span>🌿 โซน 2 (SV4)</span>
+            </div>
+            <div class="input-row">
+              <label>ระดับน้ำขั้นต่ำที่จะเริ่มรด (%):</label>
+              <input type="number" id="gZ2Start" min="5" max="100" placeholder="เช่น 50 (%)">
+            </div>
+            <div class="input-row">
+              <label>ระดับน้ำที่จะตัดหยุดพัก (%):</label>
+              <input type="number" id="gZ2Stop" min="5" max="95" placeholder="เช่น 25 (%)">
+            </div>
+          </div>
+        </div>
+        <button class="btn primary" style="width: 100%; margin-top: 14px; padding: 10px;" onclick="saveGardenThresholds()">💾 บันทึกเกณฑ์ระดับน้ำสำหรับระบบรดน้ำ</button>
+      </div>
+
       <div class="card" style="grid-column: span 2;">
         <div class="card-title">
           <span>ตารางเวลารดน้ำต้นไม้อัจฉริยะ (Smart Schedule)</span>
@@ -280,6 +323,19 @@ const char DASHBOARD_BODY[] PROGMEM = R"rawliteral(
           <label>ระยะเวลาเติมน้ำต่อรอบ (นาที):</label>
           <input type="number" id="poolWaveDur" min="1" max="180" placeholder="เช่น 15 (นาที)">
         </div>
+
+        <div style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed rgba(255,255,255,0.15);">
+          <div style="font-size: 0.82rem; font-weight: 700; color: var(--accent-cyan); margin-bottom: 6px;">💧 เกณฑ์ระดับน้ำในแทงค์ 6,000L สำหรับสระคลื่น:</div>
+          <div class="input-row">
+            <label>ระดับน้ำขั้นต่ำที่จะเริ่มเติม (%):</label>
+            <input type="number" id="pWStart" min="5" max="100" placeholder="เช่น 40 (%)">
+          </div>
+          <div class="input-row">
+            <label>ระดับน้ำที่จะตัดหยุดพัก (%):</label>
+            <input type="number" id="pWStop" min="5" max="95" placeholder="เช่น 20 (%)">
+          </div>
+        </div>
+
         <div id="waveQueueStatus" style="font-size: 0.8rem; color: var(--accent-yellow); margin-top: 6px; display: none;">
           ⏳ มีคิวรอน้ำเต็มสระคลื่น (กำลังรอระบบว่าง / พักชั่วคราว)
         </div>
@@ -316,6 +372,19 @@ const char DASHBOARD_BODY[] PROGMEM = R"rawliteral(
           <label>ระยะเวลาเติมน้ำต่อรอบ (นาที):</label>
           <input type="number" id="poolPlayDur" min="1" max="180" placeholder="เช่น 15 (นาที)">
         </div>
+
+        <div style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed rgba(255,255,255,0.15);">
+          <div style="font-size: 0.82rem; font-weight: 700; color: #38bdf8; margin-bottom: 6px;">💧 เกณฑ์ระดับน้ำในแทงค์ 6,000L สำหรับสระเล่น:</div>
+          <div class="input-row">
+            <label>ระดับน้ำขั้นต่ำที่จะเริ่มเติม (%):</label>
+            <input type="number" id="pPStart" min="5" max="100" placeholder="เช่น 40 (%)">
+          </div>
+          <div class="input-row">
+            <label>ระดับน้ำที่จะตัดหยุดพัก (%):</label>
+            <input type="number" id="pPStop" min="5" max="95" placeholder="เช่น 20 (%)">
+          </div>
+        </div>
+
         <div id="playQueueStatus" style="font-size: 0.8rem; color: var(--accent-yellow); margin-top: 6px; display: none;">
           ⏳ มีคิวรอน้ำเต็มสระเล่น (กำลังรอระบบว่าง / พักชั่วคราว)
         </div>
@@ -323,7 +392,7 @@ const char DASHBOARD_BODY[] PROGMEM = R"rawliteral(
 
       <!-- Pool Settings Save Button -->
       <div class="card" style="grid-column: span 2;">
-        <button class="btn primary" style="width: 100%; font-size: 1rem; padding: 12px;" onclick="savePoolSettings()">💾 บันทึกการตั้งค่าสระว่ายน้ำทั้งสองสระ</button>
+        <button class="btn primary" style="width: 100%; font-size: 1rem; padding: 12px;" onclick="savePoolSettings()">💾 บันทึกการตั้งค่าสระว่ายน้ำและเกณฑ์ระดับน้ำ</button>
       </div>
     </div>
   </div>
