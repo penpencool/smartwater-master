@@ -81,21 +81,21 @@ public:
             String nowTime = getCurrentTimeString();
 
             StateLock lock;
-            if (nodeId == NODE_WAVE_POOL && len == sizeof(PoolNodePayload)) {
+            if (nodeId == NODE_WAVE_POOL && len >= sizeof(PoolNodePayload)) {
                 memcpy(&pool1Data, incomingData, sizeof(PoolNodePayload));
                 lastNode1Time = millis();
                 lastNode1TimeStr = nowTime;
                 Serial.printf("📥 [Master] Recv Node 1 (Wave Pool @ %s): Low=%s, Bat=%.2fV\n",
                               nowTime.c_str(), pool1Data.waterLow ? "YES" : "NO", pool1Data.batteryVoltage);
             }
-            else if (nodeId == NODE_PLAY_POOL && len == sizeof(PoolNodePayload)) {
+            else if (nodeId == NODE_PLAY_POOL && len >= sizeof(PoolNodePayload)) {
                 memcpy(&pool2Data, incomingData, sizeof(PoolNodePayload));
                 lastNode2Time = millis();
                 lastNode2TimeStr = nowTime;
                 Serial.printf("📥 [Master] Recv Node 2 (Play Pool @ %s): Low=%s, Bat=%.2fV\n",
                               nowTime.c_str(), pool2Data.waterLow ? "YES" : "NO", pool2Data.batteryVoltage);
             }
-            else if (nodeId == NODE_WATER_TANK && len == sizeof(TankNodePayload)) {
+            else if (nodeId == NODE_WATER_TANK && len >= sizeof(TankNodePayload)) {
                 memcpy(&tankData, incomingData, sizeof(TankNodePayload));
                 lastNode3Time = millis();
                 lastNode3TimeStr = nowTime;
@@ -128,10 +128,12 @@ public:
                     HardwareController::setRelay(RELAY_BOREHOLE, false);
                 }
             }
-            else if (nodeId == NODE_SOLAR_PANEL && len == sizeof(SolarNodePayload)) {
+            else if (nodeId == NODE_SOLAR_PANEL && len >= sizeof(SolarNodePayload)) {
                 memcpy(&solarData, incomingData, sizeof(SolarNodePayload));
                 lastNode4Time = millis();
                 lastNode4TimeStr = nowTime;
+            } else {
+                Serial.printf("⚠️ [Master] Recv Unknown/Size Mismatch: NodeId=%d, Len=%d\n", nodeId, len);
             }
         }
     }

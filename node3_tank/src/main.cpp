@@ -91,7 +91,7 @@ void setup() {
     Serial.begin(115200);
     delay(500);
     Serial.println("==========================================");
-    Serial.println("Starting Node 3: Water Tank Sensor (Raw Distance CM)...");
+    Serial.println("Starting Node 3: Water Tank Sensor (Multi-Channel ESP-NOW)...");
     Serial.printf("Configured Pins: Trig=GPIO %d, Echo=GPIO %d\n", PIN_TRIG, PIN_ECHO);
     Serial.println("Note: Calibration & % Calculation are handled centrally by Master.");
     Serial.println("==========================================");
@@ -127,7 +127,7 @@ void setup() {
         Serial.println("Failed to add broadcast peer");
     }
 
-    Serial.println("Node 3 Ready (Transmitting raw cm to Master).");
+    Serial.println("Node 3 Ready (Multi-Channel Broadcast Active).");
 }
 
 void loop() {
@@ -150,18 +150,24 @@ void loop() {
     payload.currentFullCm = 0.0f;
     payload.messageId = ++msgCount;
 
-    // 5. ส่ง ESP-NOW Broadcast เข้า Master Controller
+    // 5. ส่ง ESP-NOW Multi-Channel Broadcast (ครอบคลุมช่อง 1 - 13 เพื่อรับประกันว่าจะตรงกับ Channel ของ Master เสมอ)
     digitalWrite(PIN_LED_STATUS, HIGH); // ไฟสถานะกะพริบขณะส่ง
-    esp_err_t result = esp_now_send(broadcastMacAddress, (uint8_t *)&payload, sizeof(payload));
+    esp_err_t sendResult = ESP_FAIL;
+    for (uint8_t ch = 1; ch <= 13; ch++) {
+        esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+        esp_err_t res = esp_now_send(broadcastMacAddress, (uint8_t *)&payload, sizeof(payload));
+        if (res == ESP_OK) sendResult = ESP_OK;
+        delay(2);
+    }
     digitalWrite(PIN_LED_STATUS, LOW);
 
     if (distanceCm > 0) {
         Serial.printf("[Node 3] Raw Dist: %.1f cm | Float Backup: %s | Bat: %.2fV | Msg #%u (Sent: %s)\n",
                       distanceCm, floatActive ? "ACTIVE (Cutoff)" : "NORMAL", batV, msgCount,
-                      (result == ESP_OK) ? "OK" : "FAIL");
+                      (sendResult == ESP_OK) ? "OK" : "FAIL");
     } else {
         Serial.printf("[Node 3] ⚠️ No Echo / Sensor Read Error (Check 5V Power & Wiring Trig:G5, Echo:G18) | Bat: %.2fV | Msg #%u (Sent: %s)\n",
-                      batV, msgCount, (result == ESP_OK) ? "OK" : "FAIL");
+                      batV, msgCount, (sendResult == ESP_OK) ? "OK" : "FAIL");
     }
 
     // ส่งข้อมูลทุก 5 วินาทีระหว่างทดสอบ (ปกติ 15 วิ)
