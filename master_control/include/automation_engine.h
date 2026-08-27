@@ -78,6 +78,28 @@ public:
             pool2Data.waterLow = simPool2Low;
         }
 
+        // 0. 🛡️ Auto-Recovery / Self-Healing Mechanism (ระบบฟื้นตัวและปลดล็อคตัวเองอัตโนมัติ คนไม่ต้องมากดรีเซ็ต)
+        unsigned long nodeOfflineTimeoutMs = (configManager.config.nodeOfflineTimeoutMin > 0) ? ((unsigned long)configManager.config.nodeOfflineTimeoutMin * 60000UL) : 120000UL;
+        bool isNode3Offline = (lastNode3Time == 0) || (millis() - lastNode3Time > nodeOfflineTimeoutMs);
+
+        // 🟢 ฟื้นตัวจาก E2 (น้ำในแทงค์ต่ำวิกฤต): เมื่อน้ำถูกเติมขึ้นมาเกินระดับปลอดภัย + Hysteresis 3% -> ปลดล็อค Alarm เองอัตโนมัติ
+        if (currentError == ERR_TANK_DRY) {
+            float recoveryThreshold = configManager.config.tankSafeCutoff + 3.0f; // เช่น 25% + 3% = 28%
+            if (!isNode3Offline && tankData.waterLevelPercent > recoveryThreshold) {
+                currentError = ERR_NONE;
+                Serial.printf("🟢 [AUTO RECOVERY] Tank water level restored (%.1f%% > %.1f%%) -> Cleared Alarm E2 automatically.\n",
+                              tankData.waterLevelPercent, recoveryThreshold);
+            }
+        }
+
+        // 🟢 ฟื้นตัวจาก E4 (เซ็นเซอร์หลุด): เมื่อโหนดกลับมาส่งข้อมูลได้ตามปกติ -> ปลดล็อค Alarm เองอัตโนมัติ
+        if (currentError == ERR_NODE_LOST) {
+            if (!isNode3Offline) {
+                currentError = ERR_NONE;
+                Serial.println("🟢 [AUTO RECOVERY] Node 3 Tank Sensor reconnected -> Cleared Alarm E4 automatically.");
+            }
+        }
+
         // 1. Pool Top-Up Auto Task Timer
         if (currentPoolTaskZone > 0) {
             if (millis() - poolTaskStartTime >= poolTaskDurationMs) {
@@ -133,10 +155,7 @@ public:
 
         // 3. Flow Switch Watchdog & Live Tank Safety Check
         if (stateFilterPump) {
-            unsigned long nodeOfflineTimeoutMs = (configManager.config.nodeOfflineTimeoutMin > 0) ? ((unsigned long)configManager.config.nodeOfflineTimeoutMin * 60000UL) : 120000UL;
-            bool isNode3Offline = (lastNode3Time == 0) || (millis() - lastNode3Time > nodeOfflineTimeoutMs);
-
-            // หากกำลังปั๊มน้ำอยู่แล้วพบว่า Node 3 หลุด หรือน้ำในแทงค์ต่ำวิกฤต -> ตัดปั๊มทันที
+            // หากกำลังปั๊มน้ำออกอยู่แล้วพบว่า Node 3 หลุด หรือน้ำในแทงค์ต่ำวิกฤต -> ตัดปั๊มทันทีเพื่อป้องกันปั๊มรันแห้ง
             if (isNode3Offline) {
                 HardwareController::stopAllOutputs();
                 currentError = ERR_NODE_LOST;
@@ -168,16 +187,16 @@ public:
         }
 
         // 4. Auto Borehole Tank Refill Logic (คำนวณจากระดับน้ำแทงค์ %)
-        unsigned long nodeOfflineTimeoutMs = (configManager.config.nodeOfflineTimeoutMin > 0) ? ((unsigned long)configManager.config.nodeOfflineTimeoutMin * 60000UL) : 120000UL;
-        bool isNode3Offline = (lastNode3Time == 0) || (millis() - lastNode3Time > nodeOfflineTimeoutMs);
-        if (configManager.config.autoBoreholeEnabled && !isNode3Offline && currentError == ERR_NONE) {
+        // 💧 ปั๊มบาดาลสูบน้ำเข้าแทงค์: ต้องทำงานได้เสมอแม้ติด ERR_TANK_DRY (เพราะน้ำแห้งจึงต้องสูบน้ำเข้า!)
+        bool boreholeAllowed = (currentError == ERR_NONE || currentError == ERR_TANK_DRY);
+        if (configManager.config.autoBoreholeEnabled && !isNode3Offline && boreholeAllowed) {
             // หากระดับน้ำต่ำกว่า Trigger (< 70%) และปั๊มดันน้ำไม่ได้ทำงานอยู่
             if (!stateBorehole && tankData.waterLevelPercent > 0.0f && tankData.waterLevelPercent < configManager.config.tankLowTrigger) {
                 if (!stateFilterPump && !tankData.floatBackupActive) {
                     stateBorehole = true;
                     HardwareController::setRelay(RELAY_BOREHOLE, true);
                     HardwareController::soundBeep(1, 150);
-                    Serial.printf("⚡ [AUTO] Tank level (%.1f%%) < Low Trigger (%.1f%%) -> Started Borehole Pump.\n",
+                    Serial.printf("⚡ [AUTO BOREHOLE] Tank level (%.1f%%) < Low Trigger (%.1f%%) -> Started Borehole Pump.\n",
                                   tankData.waterLevelPercent, configManager.config.tankLowTrigger);
                 }
             }
@@ -186,7 +205,7 @@ public:
                 stateBorehole = false;
                 HardwareController::setRelay(RELAY_BOREHOLE, false);
                 HardwareController::soundBeep(2, 100);
-                Serial.printf("⚡ [AUTO] Tank full (%.1f%%) or float backup triggered -> Stopped Borehole Pump.\n",
+                Serial.printf("⚡ [AUTO BOREHOLE] Tank full (%.1f%%) or float backup triggered -> Stopped Borehole Pump.\n",
                               tankData.waterLevelPercent);
             }
         }
