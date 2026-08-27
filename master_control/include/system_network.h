@@ -100,8 +100,25 @@ public:
                 lastNode3Time = millis();
                 lastNode3TimeStr = nowTime;
 
-                Serial.printf("📥 [Master] Recv Node 3 @ %s: Level=%.1f%%, Dist=%.1fcm, Float=%s, Bat=%.2fV\n",
-                              nowTime.c_str(), tankData.waterLevelPercent, tankData.distanceCm,
+                // 💧 Master ส่วนกลางคำนวณระดับน้ำเป็น % จากระยะ cm ที่ Node 3 ส่งมา
+                float emptyCm = configManager.config.tankEmptyCm;
+                float fullCm  = configManager.config.tankFullCm;
+                if (tankData.distanceCm > 0.0f && emptyCm > fullCm) {
+                    if (tankData.distanceCm >= emptyCm) {
+                        tankData.waterLevelPercent = 0.0f;
+                    } else if (tankData.distanceCm <= fullCm) {
+                        tankData.waterLevelPercent = 100.0f;
+                    } else {
+                        tankData.waterLevelPercent = ((emptyCm - tankData.distanceCm) / (emptyCm - fullCm)) * 100.0f;
+                    }
+                } else if (tankData.distanceCm <= 0.0f) {
+                    // เซ็นเซอร์อ่านไม่สำเร็จ (No Echo / Read Error)
+                    tankData.waterLevelPercent = 0.0f;
+                }
+
+                Serial.printf("📥 [Master] Recv Node 3 @ %s: Raw Dist=%.1fcm -> Master Calc Level=%.1f%% (Empty:%.0f/Full:%.0f), Float=%s, Bat=%.2fV\n",
+                              nowTime.c_str(), tankData.distanceCm, tankData.waterLevelPercent,
+                              emptyCm, fullCm,
                               tankData.floatBackupActive ? "ACTIVE" : "NORMAL",
                               tankData.batteryVoltage);
 

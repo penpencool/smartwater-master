@@ -289,29 +289,30 @@ public:
                 return;
             }
 
-            // บันทึกลง Master NVS
+            // บันทึกลง Master NVS และคำนวณระดับน้ำ % ทันที
             {
                 StateLock lock;
                 configManager.config.tankEmptyCm = emptyVal;
                 configManager.config.tankFullCm = fullVal;
                 configManager.save();
+
+                // คำนวณระดับน้ำ % ใหม่ทันทีจากระยะ cm ล่าสุด
+                if (tankData.distanceCm > 0.0f && emptyVal > fullVal) {
+                    if (tankData.distanceCm >= emptyVal) {
+                        tankData.waterLevelPercent = 0.0f;
+                    } else if (tankData.distanceCm <= fullVal) {
+                        tankData.waterLevelPercent = 100.0f;
+                    } else {
+                        tankData.waterLevelPercent = ((emptyVal - tankData.distanceCm) / (emptyVal - fullVal)) * 100.0f;
+                    }
+                }
             }
 
-            // ส่งแพ็กเก็ต Calibration ไปยัง Node 3 ผ่าน ESP-NOW
-            TankCalibrationPayload calib;
-            calib.msgType = NODE_TANK_CALIBRATE;
-            calib.distEmptyCm = emptyVal;
-            calib.distFullCm = fullVal;
-            calib.commandId = millis();
-
-            uint8_t bcastMac[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-            esp_err_t res = esp_now_send(bcastMac, (uint8_t *)&calib, sizeof(calib));
-
-            Serial.printf("📡 Sent Calibration to Node 3: Empty=%.1f cm, Full=%.1f cm (NVS Saved & ESP-NOW: %s)\n",
-                          emptyVal, fullVal, (res == ESP_OK) ? "OK" : "FAIL");
+            Serial.printf("💾 [Master Central] Tank Calibration saved: Empty=%.1f cm, Full=%.1f cm (Recalculated Level: %.1f%%)\n",
+                          emptyVal, fullVal, tankData.waterLevelPercent);
 
             HardwareController::soundBeep(1, 150);
-            server.send(200, "application/json", "{\"msg\":\"✅ บันทึกลง Master NVS และส่งการตั้งค่าระดับน้ำไปยัง Node 3 เรียบร้อย (Empty: " + String(emptyVal, 0) + "cm, Full: " + String(fullVal, 0) + "cm)\"}");
+            server.send(200, "application/json", "{\"msg\":\"✅ บันทึกการตั้งค่าระยะถังน้ำลง Master เรียบร้อย (ระดับน้ำ: " + String(tankData.waterLevelPercent, 1) + "%)\"}");
         });
 
         // 6. System Parameters Config API (Offline Timeout, etc.)
