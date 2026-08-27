@@ -78,71 +78,102 @@ public:
     #endif
         if (len >= 1) {
             uint8_t nodeId = incomingData[0];
+
+            // ✅ Fix: ได้ timestamp String ก่อน lock เพื่อลด mutex hold time
             String nowTime = getCurrentTimeString();
 
-            StateLock lock;
+            // ✅ Fix: Lock เฉพาะตอน write global state เท่านั้น (ไม่รวม Serial.printf)
             if (nodeId == NODE_WAVE_POOL && len >= sizeof(PoolNodePayload)) {
-                memcpy(&pool1Data, incomingData, sizeof(PoolNodePayload));
-                lastNode1Time = millis();
-                lastNode1TimeStr = nowTime;
+                bool wLow; float bat;
+                {
+                    StateLock lock;
+                    memcpy(&pool1Data, incomingData, sizeof(PoolNodePayload));
+                    lastNode1Time = millis();
+                    lastNode1TimeStr = nowTime;
+                    wLow = pool1Data.waterLow;
+                    bat  = pool1Data.batteryVoltage;
+                }
                 Serial.printf("📥 [Master] Recv Node 1 (Wave Pool @ %s): Low=%s, Bat=%.2fV\n",
-                              nowTime.c_str(), pool1Data.waterLow ? "YES" : "NO", pool1Data.batteryVoltage);
+                              nowTime.c_str(), wLow ? "YES" : "NO", bat);
             }
             else if (nodeId == NODE_PLAY_POOL && len >= sizeof(PoolNodePayload)) {
-                memcpy(&pool2Data, incomingData, sizeof(PoolNodePayload));
-                lastNode2Time = millis();
-                lastNode2TimeStr = nowTime;
+                bool wLow; float bat;
+                {
+                    StateLock lock;
+                    memcpy(&pool2Data, incomingData, sizeof(PoolNodePayload));
+                    lastNode2Time = millis();
+                    lastNode2TimeStr = nowTime;
+                    wLow = pool2Data.waterLow;
+                    bat  = pool2Data.batteryVoltage;
+                }
                 Serial.printf("📥 [Master] Recv Node 2 (Play Pool @ %s): Low=%s, Bat=%.2fV\n",
-                              nowTime.c_str(), pool2Data.waterLow ? "YES" : "NO", pool2Data.batteryVoltage);
+                              nowTime.c_str(), wLow ? "YES" : "NO", bat);
             }
             else if (nodeId == NODE_WATER_TANK && len >= sizeof(TankNodePayload)) {
-                memcpy(&tankData, incomingData, sizeof(TankNodePayload));
-                lastNode3Time = millis();
-                lastNode3TimeStr = nowTime;
+                // Copy raw bytes ก่อนโดยไม่ต้อง lock (incomingData คือ temp buffer ของ ESP-NOW)
+                TankNodePayload localTank;
+                memcpy(&localTank, incomingData, sizeof(TankNodePayload));
 
-                // 🟢 Auto-Recovery: หากเคยติด Alarm เซ็นเซอร์หลุด (E3) เมื่อได้รับข้อมูลแล้วให้ปลดล็อกทันที
-                if (currentError == ERR_NODE_LOST) {
-                    currentError = ERR_NONE;
-                    Serial.println("🟢 [ESP-NOW Recv Node 3] Auto-cleared Alarm E3 (Sensor Reconnected)!");
-                }
-
-                // 💧 Master ส่วนกลางคำนวณระดับน้ำเป็น % จากระยะ cm ที่ Node 3 ส่งมา
+                // คำนวณ % ก่อน lock (ใช้ config อ่านอย่างเดียว ปลอดภัย)
                 float emptyCm = configManager.config.tankEmptyCm;
                 float fullCm  = configManager.config.tankFullCm;
-                if (tankData.distanceCm > 0.0f && emptyCm > fullCm) {
-                    if (tankData.distanceCm >= emptyCm) {
-                        tankData.waterLevelPercent = 0.0f;
-                    } else if (tankData.distanceCm <= fullCm) {
-                        tankData.waterLevelPercent = 100.0f;
+                if (localTank.distanceCm > 0.0f && emptyCm > fullCm) {
+                    if (localTank.distanceCm >= emptyCm) {
+                        localTank.waterLevelPercent = 0.0f;
+                    } else if (localTank.distanceCm <= fullCm) {
+                        localTank.waterLevelPercent = 100.0f;
                     } else {
-                        tankData.waterLevelPercent = ((emptyCm - tankData.distanceCm) / (emptyCm - fullCm)) * 100.0f;
+                        localTank.waterLevelPercent = ((emptyCm - localTank.distanceCm) / (emptyCm - fullCm)) * 100.0f;
                     }
-                } else if (tankData.distanceCm <= 0.0f) {
+                } else if (localTank.distanceCm <= 0.0f) {
                     // เซ็นเซอร์อ่านไม่สำเร็จ (No Echo / Read Error)
-                    tankData.waterLevelPercent = 0.0f;
+                    localTank.waterLevelPercent = 0.0f;
                 }
 
-                Serial.printf("📥 [Master] Recv Node 3 @ %s: Raw Dist=%.1fcm -> Master Calc Level=%.1f%% (Empty:%.0f/Full:%.0f), Float=%s, Bat=%.2fV\n",
-                              nowTime.c_str(), tankData.distanceCm, tankData.waterLevelPercent,
-                              emptyCm, fullCm,
-                              tankData.floatBackupActive ? "ACTIVE" : "NORMAL",
-                              tankData.batteryVoltage);
+                // ✅ Lock เฉพาะตอน write global tankData
+                bool doAutoRecovery = false;
+                bool doFloatCutoff  = false;
+                {
+                    StateLock lock;
+                    tankData = localTank;
+                    lastNode3Time    = millis();
+                    lastNode3TimeStr = nowTime;
+                    if (currentError == ERR_NODE_LOST) {
+                        currentError = ERR_NONE;
+                        doAutoRecovery = true;
+                    }
+                    if (localTank.floatBackupActive && stateBorehole) {
+                        stateBorehole = false;
+                        doFloatCutoff = true;
+                    }
+                }
 
-                // Fail-safe: หากสวิตช์ลูกลอยแตะระดับตัด ให้ตัดปั๊มบาดาลทันที (ไม่ใช้ beep delay ใน WiFi ISR callback)
-                if (tankData.floatBackupActive && stateBorehole) {
-                    stateBorehole = false;
+                // ✅ Serial + HW calls นอก lock ทั้งหมด
+                if (doAutoRecovery) {
+                    Serial.println("🟢 [ESP-NOW Recv Node 3] Auto-cleared Alarm E3 (Sensor Reconnected)!");
+                }
+                Serial.printf("📥 [Master] Recv Node 3 @ %s: Raw Dist=%.1fcm -> Master Calc Level=%.1f%% (Empty:%.0f/Full:%.0f), Float=%s, Bat=%.2fV\n",
+                              nowTime.c_str(), localTank.distanceCm, localTank.waterLevelPercent,
+                              emptyCm, fullCm,
+                              localTank.floatBackupActive ? "ACTIVE" : "NORMAL",
+                              localTank.batteryVoltage);
+                if (doFloatCutoff) {
                     HardwareController::setRelay(RELAY_BOREHOLE, false);
                 }
             }
             else if (nodeId == NODE_SOLAR_PANEL && len >= sizeof(SolarNodePayload)) {
-                memcpy(&solarData, incomingData, sizeof(SolarNodePayload));
-                lastNode4Time = millis();
-                lastNode4TimeStr = nowTime;
+                {
+                    StateLock lock;
+                    memcpy(&solarData, incomingData, sizeof(SolarNodePayload));
+                    lastNode4Time    = millis();
+                    lastNode4TimeStr = nowTime;
+                }
             } else {
                 Serial.printf("⚠️ [Master] Recv Unknown/Size Mismatch: NodeId=%d, Len=%d\n", nodeId, len);
             }
         }
     }
+
 
     static void init(ConfigManager &configManager) {
         WiFi.onEvent(onWiFiEvent);

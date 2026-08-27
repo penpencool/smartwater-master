@@ -26,156 +26,238 @@ public:
 
         // 2. Real-time Status API
         server.on("/api/status", HTTP_GET, [&server, &configManager]() {
-            StateLock lock;
-            StaticJsonDocument<2048> doc;
+            // ✅ Fix #1: Copy-then-Release — copy shared state ภายใต้ lock แล้ว release ทันที
+            // จากนั้น serialize JSON + server.send() โดยไม่ถือ lock (ป้องกัน Core 1 blocked)
+            String _activeTaskName;
+            int _errorCode;
+            bool _isNode1Online, _node1WaterLow; float _node1Battery; unsigned long _lastNode1Sec; String _lastNode1TimeStr;
+            bool _isNode2Online, _node2WaterLow; float _node2Battery; unsigned long _lastNode2Sec; String _lastNode2TimeStr;
+            bool _isNode3Online; float _tankLevel, _tankDist; bool _tankFloat; float _node3Battery; unsigned long _lastNode3Sec; String _lastNode3TimeStr;
+            bool _isNode4Online; unsigned long _lastNode4Sec; String _lastNode4TimeStr;
+            unsigned long _nodeOfflineTimeoutMs;
+            bool _pumpBorehole, _pumpFilter, _mainA, _mainB, _sv1, _sv2, _sv3, _sv4;
+            uint8_t _currentGardenZone, _currentPoolTaskZone;
+            unsigned long _gardenTaskStartTime, _gardenTaskDurationMs, _poolTaskStartTime, _poolTaskDurationMs;
+            float _solarVolt, _solarWatt, _solarLux;
+            float _tankEmptyCm, _tankFullCm;
+            float _tankLowTrigger, _tankFullStop;
+            bool _autoBorehole;
+            float _gZ1Start, _gZ1Stop, _gZ2Start, _gZ2Stop;
+            float _pWStart, _pWStop, _pPStart, _pPStop;
+            bool _autoPoolWave, _autoPoolPlay; uint8_t _poolModeWave, _poolModePlay;
+            uint8_t _poolWaveDelay, _poolWaveDur, _poolPlayDelay, _poolPlayDur;
+            uint8_t _schedCount;
+            ScheduleSlot _schedules[MAX_SCHEDULE_SLOTS];
+            uint8_t _taskQueueCount;
+            TaskQueueItem _taskQueue[MAX_QUEUE_SIZE];
+            bool _ntpSynced;
+            bool _apActive; int _apClients; unsigned long _apStartTime;
+            char _githubRepo[64];
+            char _wifiSSID[64];
 
-            doc["activeTask"] = activeTaskName;
-            doc["errorCode"] = (int)currentError;
+            unsigned long nowMs;
+            {
+                StateLock lock;
+                nowMs = millis();
+                _nodeOfflineTimeoutMs = (configManager.config.nodeOfflineTimeoutMin > 0) ? ((unsigned long)configManager.config.nodeOfflineTimeoutMin * 60000UL) : 120000UL;
+                _activeTaskName  = activeTaskName;
+                _errorCode       = (int)currentError;
+                _isNode1Online   = (lastNode1Time > 0) && (nowMs - lastNode1Time <= _nodeOfflineTimeoutMs);
+                _node1WaterLow   = _isNode1Online ? pool1Data.waterLow : false;
+                _node1Battery    = _isNode1Online ? pool1Data.batteryVoltage : 0.0f;
+                _lastNode1Sec    = (lastNode1Time > 0) ? ((nowMs - lastNode1Time) / 1000) : 9999;
+                _lastNode1TimeStr = lastNode1TimeStr;
+                _isNode2Online   = (lastNode2Time > 0) && (nowMs - lastNode2Time <= _nodeOfflineTimeoutMs);
+                _node2WaterLow   = _isNode2Online ? pool2Data.waterLow : false;
+                _node2Battery    = _isNode2Online ? pool2Data.batteryVoltage : 0.0f;
+                _lastNode2Sec    = (lastNode2Time > 0) ? ((nowMs - lastNode2Time) / 1000) : 9999;
+                _lastNode2TimeStr = lastNode2TimeStr;
+                _isNode3Online   = (lastNode3Time > 0) && (nowMs - lastNode3Time <= _nodeOfflineTimeoutMs);
+                _tankLevel       = _isNode3Online ? tankData.waterLevelPercent : 0.0f;
+                _tankDist        = _isNode3Online ? tankData.distanceCm : -1.0f;
+                _tankFloat       = _isNode3Online ? tankData.floatBackupActive : false;
+                _node3Battery    = _isNode3Online ? tankData.batteryVoltage : 0.0f;
+                _lastNode3Sec    = (lastNode3Time > 0) ? ((nowMs - lastNode3Time) / 1000) : 9999;
+                _lastNode3TimeStr = lastNode3TimeStr;
+                _isNode4Online   = (lastNode4Time > 0) && (nowMs - lastNode4Time <= _nodeOfflineTimeoutMs);
+                _lastNode4Sec    = (lastNode4Time > 0) ? ((nowMs - lastNode4Time) / 1000) : 9999;
+                _lastNode4TimeStr = lastNode4TimeStr;
+                _pumpBorehole    = stateBorehole;
+                _pumpFilter      = stateFilterPump;
+                _mainA = stateMainA; _mainB = stateMainB;
+                _sv1 = stateSV1; _sv2 = stateSV2; _sv3 = stateSV3; _sv4 = stateSV4;
+                _currentGardenZone   = currentGardenZone;
+                _currentPoolTaskZone = currentPoolTaskZone;
+                _gardenTaskStartTime = gardenTaskStartTime;
+                _gardenTaskDurationMs = gardenTaskDurationMs;
+                _poolTaskStartTime   = poolTaskStartTime;
+                _poolTaskDurationMs  = poolTaskDurationMs;
+                _solarVolt = solarData.voltageDC;
+                _solarWatt = solarData.powerWatt;
+                _solarLux  = solarData.lightLux;
+                _tankEmptyCm = (tankData.currentEmptyCm > 0) ? tankData.currentEmptyCm : configManager.config.tankEmptyCm;
+                _tankFullCm  = (tankData.currentFullCm  > 0) ? tankData.currentFullCm  : configManager.config.tankFullCm;
+                _autoBorehole    = configManager.config.autoBoreholeEnabled;
+                _tankLowTrigger  = configManager.config.tankLowTrigger;
+                _tankFullStop    = configManager.config.tankFullStop;
+                _gZ1Start = configManager.config.gardenZ1StartLevel; _gZ1Stop = configManager.config.gardenZ1StopLevel;
+                _gZ2Start = configManager.config.gardenZ2StartLevel; _gZ2Stop = configManager.config.gardenZ2StopLevel;
+                _pWStart = configManager.config.poolWaveStartLevel; _pWStop = configManager.config.poolWaveStopLevel;
+                _pPStart = configManager.config.poolPlayStartLevel; _pPStop = configManager.config.poolPlayStopLevel;
+                _autoPoolWave = configManager.config.autoPoolWaveEnabled;
+                _poolModeWave = configManager.config.poolModeWave;
+                _poolWaveDelay = configManager.config.poolWaveDelayMin;
+                _poolWaveDur   = configManager.config.poolWaveDurationMin;
+                _autoPoolPlay = configManager.config.autoPoolPlayEnabled;
+                _poolModePlay = configManager.config.poolModePlay;
+                _poolPlayDelay = configManager.config.poolPlayDelayMin;
+                _poolPlayDur   = configManager.config.poolPlayDurationMin;
+                _schedCount = configManager.config.scheduleCount;
+                for (uint8_t i = 0; i < _schedCount && i < MAX_SCHEDULE_SLOTS; i++) _schedules[i] = configManager.config.schedules[i];
+                _taskQueueCount = taskQueueCount;
+                for (uint8_t i = 0; i < _taskQueueCount && i < MAX_QUEUE_SIZE; i++) _taskQueue[i] = taskQueue[i];
+                _ntpSynced  = ntpSynced;
+                _apActive   = SystemNetwork::apActive;
+                _apClients  = WiFi.softAPgetStationNum();
+                _apStartTime = SystemNetwork::apStartTime;
+                strncpy(_githubRepo, configManager.config.githubRepo, sizeof(_githubRepo)-1);
+                _githubRepo[sizeof(_githubRepo)-1] = '\0';
+                strncpy(_wifiSSID, configManager.config.wifiSSID, sizeof(_wifiSSID)-1);
+                _wifiSSID[sizeof(_wifiSSID)-1] = '\0';
+            } // ← Release StateLock ทันทีหลัง copy
 
-            unsigned long nodeOfflineTimeoutMs = (configManager.config.nodeOfflineTimeoutMin > 0) ? ((unsigned long)configManager.config.nodeOfflineTimeoutMin * 60000UL) : 120000UL;
+            // Build JSON จาก local copies (ไม่ต้องถือ lock)
+            DynamicJsonDocument doc(3072);
 
-            // Node 1 & Node 2 Status
-            bool isNode1Online = (lastNode1Time > 0) && (millis() - lastNode1Time <= nodeOfflineTimeoutMs);
-            doc["node1Online"] = isNode1Online;
-            doc["node1WaterLow"] = isNode1Online ? pool1Data.waterLow : false;
-            doc["node1Battery"] = isNode1Online ? pool1Data.batteryVoltage : 0.0f;
-            doc["lastNode1Sec"] = (lastNode1Time > 0) ? ((millis() - lastNode1Time) / 1000) : 9999;
-            doc["lastNode1Time"] = lastNode1TimeStr;
+            doc["activeTask"] = _activeTaskName;
+            doc["errorCode"] = _errorCode;
 
-            bool isNode2Online = (lastNode2Time > 0) && (millis() - lastNode2Time <= nodeOfflineTimeoutMs);
-            doc["node2Online"] = isNode2Online;
-            doc["node2WaterLow"] = isNode2Online ? pool2Data.waterLow : false;
-            doc["node2Battery"] = isNode2Online ? pool2Data.batteryVoltage : 0.0f;
-            doc["lastNode2Sec"] = (lastNode2Time > 0) ? ((millis() - lastNode2Time) / 1000) : 9999;
-            doc["lastNode2Time"] = lastNode2TimeStr;
+            doc["node1Online"] = _isNode1Online;
+            doc["node1WaterLow"] = _node1WaterLow;
+            doc["node1Battery"] = _node1Battery;
+            doc["lastNode1Sec"] = _lastNode1Sec;
+            doc["lastNode1Time"] = _lastNode1TimeStr;
 
-            // Node 3 Online Status
-            bool isNode3Online = (lastNode3Time > 0) && (millis() - lastNode3Time <= nodeOfflineTimeoutMs);
-            doc["node3Online"] = isNode3Online;
-            doc["lastNode3Sec"] = (lastNode3Time > 0) ? ((millis() - lastNode3Time) / 1000) : 9999;
-            doc["lastNode3Time"] = lastNode3TimeStr;
-            doc["tankLevel"] = isNode3Online ? tankData.waterLevelPercent : 0.0f;
-            doc["tankDist"] = isNode3Online ? tankData.distanceCm : -1.0f;
-            doc["tankFloat"] = isNode3Online ? tankData.floatBackupActive : false;
-            doc["node3Battery"] = isNode3Online ? tankData.batteryVoltage : 0.0f;
+            doc["node2Online"] = _isNode2Online;
+            doc["node2WaterLow"] = _node2WaterLow;
+            doc["node2Battery"] = _node2Battery;
+            doc["lastNode2Sec"] = _lastNode2Sec;
+            doc["lastNode2Time"] = _lastNode2TimeStr;
 
-            // Node 4 Solar Status
-            bool isNode4Online = (lastNode4Time > 0) && (millis() - lastNode4Time <= nodeOfflineTimeoutMs);
-            doc["node4Online"] = isNode4Online;
-            doc["lastNode4Sec"] = (lastNode4Time > 0) ? ((millis() - lastNode4Time) / 1000) : 9999;
-            doc["lastNode4Time"] = lastNode4TimeStr;
+            doc["node3Online"] = _isNode3Online;
+            doc["lastNode3Sec"] = _lastNode3Sec;
+            doc["lastNode3Time"] = _lastNode3TimeStr;
+            doc["tankLevel"] = _tankLevel;
+            doc["tankDist"] = _tankDist;
+            doc["tankFloat"] = _tankFloat;
+            doc["node3Battery"] = _node3Battery;
 
-            doc["nodeOfflineTimeoutMin"] = configManager.config.nodeOfflineTimeoutMin;
+            doc["node4Online"] = _isNode4Online;
+            doc["lastNode4Sec"] = _lastNode4Sec;
+            doc["lastNode4Time"] = _lastNode4TimeStr;
+
+            doc["nodeOfflineTimeoutMin"] = (unsigned long)(_nodeOfflineTimeoutMs / 60000UL);
 
             // Relays Status (All 8 Channels)
-            doc["pumpBorehole"] = stateBorehole; // CH1
-            doc["pumpFilter"] = stateFilterPump; // CH2/3
-            doc["mainA"] = stateMainA;           // CH4
-            doc["mainB"] = stateMainB;           // CH5
-            doc["sv1"] = stateSV1;               // CH6
-            doc["sv2"] = stateSV2;               // CH7
-            doc["sv3"] = stateSV3;               // CH7b
-            doc["sv4"] = stateSV4;               // CH8
-            doc["currentGardenZone"] = currentGardenZone;
-            doc["currentPoolTaskZone"] = currentPoolTaskZone;
+            doc["pumpBorehole"] = _pumpBorehole;
+            doc["pumpFilter"] = _pumpFilter;
+            doc["mainA"] = _mainA;
+            doc["mainB"] = _mainB;
+            doc["sv1"] = _sv1;
+            doc["sv2"] = _sv2;
+            doc["sv3"] = _sv3;
+            doc["sv4"] = _sv4;
+            doc["currentGardenZone"] = _currentGardenZone;
+            doc["currentPoolTaskZone"] = _currentPoolTaskZone;
 
             // Task Remaining Seconds Countdown
             int taskRemainingSec = 0;
-            if (currentGardenZone > 0 && gardenTaskDurationMs > 0) {
-                unsigned long elapsed = millis() - gardenTaskStartTime;
-                taskRemainingSec = (elapsed < gardenTaskDurationMs) ? ((gardenTaskDurationMs - elapsed) / 1000) : 0;
-            } else if (currentPoolTaskZone > 0 && poolTaskDurationMs > 0) {
-                unsigned long elapsed = millis() - poolTaskStartTime;
-                taskRemainingSec = (elapsed < poolTaskDurationMs) ? ((poolTaskDurationMs - elapsed) / 1000) : 0;
+            if (_currentGardenZone > 0 && _gardenTaskDurationMs > 0) {
+                unsigned long elapsed = nowMs - _gardenTaskStartTime;
+                taskRemainingSec = (elapsed < _gardenTaskDurationMs) ? ((_gardenTaskDurationMs - elapsed) / 1000) : 0;
+            } else if (_currentPoolTaskZone > 0 && _poolTaskDurationMs > 0) {
+                unsigned long elapsed = nowMs - _poolTaskStartTime;
+                taskRemainingSec = (elapsed < _poolTaskDurationMs) ? ((_poolTaskDurationMs - elapsed) / 1000) : 0;
             }
             doc["taskRemainingSec"] = taskRemainingSec;
 
             // Sensors & Solar
             doc["flowActive"] = (digitalRead(PIN_FLOW_SWITCH) == LOW);
-            doc["solarVolt"] = solarData.voltageDC;
-            doc["solarWatt"] = solarData.powerWatt;
-            doc["solarLux"] = solarData.lightLux;
+            doc["solarVolt"] = _solarVolt;
+            doc["solarWatt"] = _solarWatt;
+            doc["solarLux"] = _solarLux;
 
             // Tank NVS Calibration Params
-            doc["tankEmptyCm"] = (tankData.currentEmptyCm > 0) ? tankData.currentEmptyCm : configManager.config.tankEmptyCm;
-            doc["tankFullCm"] = (tankData.currentFullCm > 0) ? tankData.currentFullCm : configManager.config.tankFullCm;
+            doc["tankEmptyCm"] = _tankEmptyCm;
+            doc["tankFullCm"] = _tankFullCm;
 
             // Queue Status & Items
-            doc["queueCount"] = taskQueueCount;
+            doc["queueCount"] = _taskQueueCount;
             JsonArray queueArr = doc.createNestedArray("queue");
-            unsigned long nowMs = millis();
-            for (uint8_t i = 0; i < taskQueueCount; i++) {
+            for (uint8_t i = 0; i < _taskQueueCount; i++) {
                 JsonObject qObj = queueArr.createNestedObject();
-                qObj["type"] = (uint8_t)taskQueue[i].type;
-                qObj["name"] = taskQueue[i].taskName;
-                qObj["zone"] = taskQueue[i].targetZone;
-                qObj["dur"] = taskQueue[i].durationMin;
-                
+                qObj["type"] = (uint8_t)_taskQueue[i].type;
+                qObj["name"] = _taskQueue[i].taskName;
+                qObj["zone"] = _taskQueue[i].targetZone;
+                qObj["dur"] = _taskQueue[i].durationMin;
                 int delaySec = 0;
-                if (taskQueue[i].executeAtMillis > nowMs) {
-                    delaySec = (taskQueue[i].executeAtMillis - nowMs) / 1000;
+                if (_taskQueue[i].executeAtMillis > nowMs) {
+                    delaySec = (_taskQueue[i].executeAtMillis - nowMs) / 1000;
                 }
                 qObj["delaySec"] = delaySec;
-                qObj["isAuto"] = (taskQueue[i].type == TASK_GARDEN_AUTO || taskQueue[i].type == TASK_POOL_AUTO);
+                qObj["isAuto"] = (_taskQueue[i].type == TASK_GARDEN_AUTO || _taskQueue[i].type == TASK_POOL_AUTO);
             }
 
             // Pool Auto Top-up Configuration & State
-            doc["autoPoolWave"] = configManager.config.autoPoolWaveEnabled;
-            doc["poolModeWave"] = configManager.config.poolModeWave;
-            doc["poolWaveDelay"] = configManager.config.poolWaveDelayMin;
-            doc["poolWaveDur"] = configManager.config.poolWaveDurationMin;
-
-            doc["autoPoolPlay"] = configManager.config.autoPoolPlayEnabled;
-            doc["poolModePlay"] = configManager.config.poolModePlay;
-            doc["poolPlayDelay"] = configManager.config.poolPlayDelayMin;
-            doc["poolPlayDur"] = configManager.config.poolPlayDurationMin;
+            doc["autoPoolWave"] = _autoPoolWave;
+            doc["poolModeWave"] = _poolModeWave;
+            doc["poolWaveDelay"] = _poolWaveDelay;
+            doc["poolWaveDur"] = _poolWaveDur;
+            doc["autoPoolPlay"] = _autoPoolPlay;
+            doc["poolModePlay"] = _poolModePlay;
+            doc["poolPlayDelay"] = _poolPlayDelay;
+            doc["poolPlayDur"] = _poolPlayDur;
 
             // 💧 Independent Zone Water Level Thresholds (%)
-            doc["gZ1Start"] = configManager.config.gardenZ1StartLevel;
-            doc["gZ1Stop"]  = configManager.config.gardenZ1StopLevel;
-            doc["gZ2Start"] = configManager.config.gardenZ2StartLevel;
-            doc["gZ2Stop"]  = configManager.config.gardenZ2StopLevel;
-
-            doc["pWStart"]  = configManager.config.poolWaveStartLevel;
-            doc["pWStop"]   = configManager.config.poolWaveStopLevel;
-            doc["pPStart"]  = configManager.config.poolPlayStartLevel;
-            doc["pPStop"]   = configManager.config.poolPlayStopLevel;
+            doc["gZ1Start"] = _gZ1Start; doc["gZ1Stop"] = _gZ1Stop;
+            doc["gZ2Start"] = _gZ2Start; doc["gZ2Stop"] = _gZ2Stop;
+            doc["pWStart"] = _pWStart;   doc["pWStop"] = _pWStop;
+            doc["pPStart"] = _pPStart;   doc["pPStop"] = _pPStop;
 
             // Auto Borehole Refill Thresholds
-            doc["autoBorehole"] = configManager.config.autoBoreholeEnabled;
-            doc["tankLowTrigger"] = configManager.config.tankLowTrigger;
-            doc["tankFullStop"] = configManager.config.tankFullStop;
+            doc["autoBorehole"] = _autoBorehole;
+            doc["tankLowTrigger"] = _tankLowTrigger;
+            doc["tankFullStop"] = _tankFullStop;
 
             // Dynamic Garden Schedules
-            doc["schedCount"] = configManager.config.scheduleCount;
+            doc["schedCount"] = _schedCount;
             JsonArray schedArr = doc.createNestedArray("schedules");
-            for (uint8_t i = 0; i < configManager.config.scheduleCount; i++) {
+            for (uint8_t i = 0; i < _schedCount; i++) {
                 JsonObject sObj = schedArr.createNestedObject();
-                sObj["enabled"] = configManager.config.schedules[i].enabled;
-                sObj["zone"] = configManager.config.schedules[i].zone;
-                sObj["startHour"] = configManager.config.schedules[i].startHour;
-                sObj["startMin"] = configManager.config.schedules[i].startMin;
-                sObj["endHour"] = configManager.config.schedules[i].endHour;
-                sObj["endMin"] = configManager.config.schedules[i].endMin;
+                sObj["enabled"]   = _schedules[i].enabled;
+                sObj["zone"]      = _schedules[i].zone;
+                sObj["startHour"] = _schedules[i].startHour;
+                sObj["startMin"]  = _schedules[i].startMin;
+                sObj["endHour"]   = _schedules[i].endHour;
+                sObj["endMin"]    = _schedules[i].endMin;
             }
 
             doc["currentTime"] = SystemNetwork::getCurrentTimeString();
-            doc["ntpSynced"] = ntpSynced;
+            doc["ntpSynced"] = _ntpSynced;
 
-            // Wi-Fi Status
+            // Wi-Fi Status (ตรวจ WiFi status นอก lock ได้ เพราะ WiFi API thread-safe ใน ESP32)
             bool isWifiConnected = (WiFi.status() == WL_CONNECTED);
             doc["wifiConnected"] = isWifiConnected;
             doc["staIP"] = isWifiConnected ? WiFi.localIP().toString() : "";
-            doc["wifiSSID"] = (strlen(configManager.config.wifiSSID) > 0) ? String(configManager.config.wifiSSID) : "";
+            doc["wifiSSID"] = (strlen(_wifiSSID) > 0) ? String(_wifiSSID) : "";
 
-            int clientCount = WiFi.softAPgetStationNum();
-            doc["apClients"] = clientCount;
-            doc["apActive"] = SystemNetwork::apActive;
-            if (SystemNetwork::apActive) {
-                if (clientCount > 0) {
+            doc["apClients"] = _apClients;
+            doc["apActive"] = _apActive;
+            if (_apActive) {
+                if (_apClients > 0) {
                     doc["apRemainingSec"] = -1;
                 } else {
-                    unsigned long elapsed = millis() - SystemNetwork::apStartTime;
+                    unsigned long elapsed = nowMs - _apStartTime;
                     doc["apRemainingSec"] = (elapsed < SystemNetwork::AP_TIMEOUT_MS) ? ((SystemNetwork::AP_TIMEOUT_MS - elapsed) / 1000) : 0;
                 }
             } else {
@@ -184,7 +266,7 @@ public:
 
             // Firmware & GitHub Info
             doc["firmwareVer"] = "v1.3.0";
-            doc["githubRepo"] = String(configManager.config.githubRepo);
+            doc["githubRepo"] = String(_githubRepo);
 
             String response;
             serializeJson(doc, response);
@@ -771,11 +853,11 @@ public:
             
             WiFiClientSecure client;
             client.setInsecure();
-            client.setTimeout(15);
+            client.setTimeout(8);  // ✅ Fix #3: ลด timeout 15s → 8s ป้องกัน Core 0 blocked นาน
 
             HTTPClient http;
             http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
-            http.setTimeout(15000);
+            http.setTimeout(8000);  // ✅ Fix #3
             http.begin(client, apiUrl);
             http.setUserAgent("ESP32-SmartWater-Master-OTA");
             http.addHeader("Accept", "application/vnd.github.v3+json");
@@ -785,7 +867,7 @@ public:
                 String payload = http.getString();
                 http.end();
 
-                DynamicJsonDocument doc(4096);
+                DynamicJsonDocument doc(3072);  // ✅ Fix: ลด Heap alloc จาก 4096 → 3072
                 DeserializationError err = deserializeJson(doc, payload);
                 if (!err) {
                     StaticJsonDocument<1024> resDoc;

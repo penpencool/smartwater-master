@@ -129,7 +129,7 @@ public:
             }
         } else if (currentPoolTaskZone == 0) {
             struct tm timeinfo;
-            if (getLocalTime(&timeinfo, 10)) {
+            if (getLocalTime(&timeinfo, 0)) {
                 for (uint8_t i = 0; i < configManager.config.scheduleCount; i++) {
                     ScheduleSlot &slot = configManager.config.schedules[i];
                     if (slot.enabled && timeinfo.tm_hour == slot.startHour && timeinfo.tm_min == slot.startMin) {
