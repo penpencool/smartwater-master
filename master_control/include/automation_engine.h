@@ -314,17 +314,22 @@ public:
             }
         }
 
-        // 5. Pool Auto Top-up Queueing
+        // 5. Pool Auto Top-up Queueing (State-Aware: เติมน้ำอัตโนมัติตลอดเวลาที่ลูกลอยตก แม้เพิ่งผ่าน E-Stop หรือ Reset)
         bool isNode1Online = (lastNode1Time > 0) && (millis() - lastNode1Time <= nodeOfflineTimeoutMs);
         bool isNode2Online = (lastNode2Time > 0) && (millis() - lastNode2Time <= nodeOfflineTimeoutMs);
 
         // ตรวจจับลูกลอยลดระดับ (Node 1: สระคลื่น)
         if (configManager.config.autoPoolWaveEnabled && isNode1Online && pool1Data.waterLow) {
-            if (poolLowStartTimeWave == 0) {
-                poolLowStartTimeWave = millis();
+            bool inQueue = TaskQueueManager::isQueued(TASK_POOL_AUTO, 1) || TaskQueueManager::isQueued(TASK_POOL_MANUAL, 1);
+            if (!inQueue && currentPoolTaskZone != 1) {
+                if (poolLowStartTimeWave == 0) {
+                    poolLowStartTimeWave = millis();
+                }
+                unsigned long elapsed = millis() - poolLowStartTimeWave;
                 unsigned long delayMs = (unsigned long)configManager.config.poolWaveDelayMin * 60000UL;
-                TaskQueueManager::enqueue(TASK_POOL_AUTO, 1, configManager.config.poolWaveDurationMin, "เติมน้ำสระคลื่นอัตโนมัติ", delayMs);
-                Serial.printf("🌊 [AUTO] Wave Pool Low -> Queued auto top-up with %d min delay.\n", configManager.config.poolWaveDelayMin);
+                unsigned long remDelay = (elapsed < delayMs) ? (delayMs - elapsed) : 0;
+                TaskQueueManager::enqueue(TASK_POOL_AUTO, 1, configManager.config.poolWaveDurationMin, "เติมน้ำสระคลื่นอัตโนมัติ", remDelay);
+                Serial.printf("🌊 [AUTO] Wave Pool Low -> Queued auto top-up (Delay remaining: %lu ms).\n", remDelay);
             }
         } else if (!pool1Data.waterLow) {
             poolLowStartTimeWave = 0;
@@ -340,11 +345,16 @@ public:
 
         // ตรวจจับลูกลอยลดระดับ (Node 2: สระเล่น)
         if (configManager.config.autoPoolPlayEnabled && isNode2Online && pool2Data.waterLow) {
-            if (poolLowStartTimePlay == 0) {
-                poolLowStartTimePlay = millis();
+            bool inQueue = TaskQueueManager::isQueued(TASK_POOL_AUTO, 2) || TaskQueueManager::isQueued(TASK_POOL_MANUAL, 2);
+            if (!inQueue && currentPoolTaskZone != 2) {
+                if (poolLowStartTimePlay == 0) {
+                    poolLowStartTimePlay = millis();
+                }
+                unsigned long elapsed = millis() - poolLowStartTimePlay;
                 unsigned long delayMs = (unsigned long)configManager.config.poolPlayDelayMin * 60000UL;
-                TaskQueueManager::enqueue(TASK_POOL_AUTO, 2, configManager.config.poolPlayDurationMin, "เติมน้ำสระเล่นอัตโนมัติ", delayMs);
-                Serial.printf("🏊 [AUTO] Play Pool Low -> Queued auto top-up with %d min delay.\n", configManager.config.poolPlayDelayMin);
+                unsigned long remDelay = (elapsed < delayMs) ? (delayMs - elapsed) : 0;
+                TaskQueueManager::enqueue(TASK_POOL_AUTO, 2, configManager.config.poolPlayDurationMin, "เติมน้ำสระเล่นอัตโนมัติ", remDelay);
+                Serial.printf("🏊 [AUTO] Play Pool Low -> Queued auto top-up (Delay remaining: %lu ms).\n", remDelay);
             }
         } else if (!pool2Data.waterLow) {
             poolLowStartTimePlay = 0;

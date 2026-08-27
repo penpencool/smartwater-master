@@ -155,6 +155,16 @@ public:
         return true;
     }
 
+    static bool isQueued(TaskType type, uint8_t zone) {
+        StateLock lock;
+        for (uint8_t i = 0; i < taskQueueCount; i++) {
+            if (taskQueue[i].type == type && taskQueue[i].targetZone == zone) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     static bool remove(TaskType type, uint8_t zone) {
         StateLock lock;
         for (uint8_t i = 0; i < taskQueueCount; i++) {

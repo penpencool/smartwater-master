@@ -60,6 +60,8 @@ public:
 
             flowWatchdogActive = false;
             isManualPoolTask = false; // BUG-1 FIX: รีเซ็ต flag เพื่อไม่ให้ค้างหลัง Safety Cutoff
+            poolLowStartTimeWave = 0;
+            poolLowStartTimePlay = 0;
             currentGardenZone = 0;
             currentPoolTaskZone = 0;
             activeTaskName = "";

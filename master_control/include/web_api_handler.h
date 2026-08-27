@@ -864,6 +864,8 @@ public:
             }
             else if (action == "reset_error") {
                 currentError = ERR_NONE;
+                poolLowStartTimeWave = 0;
+                poolLowStartTimePlay = 0;
                 HardwareController::soundBeep(1, 150);
                 Serial.println("🟢 [ALARM RESET] Error cleared by User.");
                 server.send(200, "application/json", "{\"msg\":\"🟢 ปลดล็อกและรีเซ็ตสถานะข้อผิดพลาดเรียบร้อย (ระบบกลับสู่ปกติ)\"}");
