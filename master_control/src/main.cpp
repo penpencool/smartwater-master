@@ -18,6 +18,7 @@ ErrorCode currentError = ERR_NONE;
 String activeTaskName = "";
 
 bool stateBorehole = false;
+unsigned long lastBoreholeStopTime = 0;
 bool stateFilterPump = false;
 bool stateMainA = false;
 bool stateMainB = false;

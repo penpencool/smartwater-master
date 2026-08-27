@@ -45,6 +45,7 @@ extern String activeTaskName;
 // Relay States (All 8 Channels)
 // ==========================================
 extern bool stateBorehole;     // CH1: ปั๊มบาดาล
+extern unsigned long lastBoreholeStopTime; // เวลาที่ปั๊มบาดาลหยุดล่าสุด (สำหรับคำนวณ Dead-time)
 extern bool stateFilterPump;   // CH2/3: ปั๊มดันน้ำ
 extern bool stateMainA;        // CH4: เข้ากรองสระ
 extern bool stateMainB;        // CH5: Bypass รดน้ำ

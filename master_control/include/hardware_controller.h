@@ -177,6 +177,14 @@ public:
         setRelay(RELAY_MAIN_B, true);
         delay(500);
 
+        // 🛡️ Hardware Dead-Time Protection (เว้นช่วงหลังปั๊มบาดาลหยุดทำงาน ป้องกันไฟกระชาก)
+        unsigned long deadTimeMs = (configManager.config.deadTimeSec > 0) ? ((unsigned long)configManager.config.deadTimeSec * 1000UL) : 3000UL;
+        if (lastBoreholeStopTime > 0 && millis() - lastBoreholeStopTime < deadTimeMs) {
+            unsigned long waitMs = deadTimeMs - (millis() - lastBoreholeStopTime);
+            Serial.printf("⏳ Waiting Dead-time (%lu ms) after borehole stop before starting filter pump...\n", waitMs);
+            delay(waitMs);
+        }
+
         // Step 3: สตาร์ทปั๊มดันน้ำ
         startFilterPump();
 
@@ -278,6 +286,14 @@ public:
         stateMainA = true;
         setRelay(RELAY_MAIN_A, true);
         delay(500);
+
+        // 🛡️ Hardware Dead-Time Protection (เว้นช่วงหลังปั๊มบาดาลหยุดทำงาน ป้องกันไฟกระชาก)
+        unsigned long deadTimeMs = (configManager.config.deadTimeSec > 0) ? ((unsigned long)configManager.config.deadTimeSec * 1000UL) : 3000UL;
+        if (lastBoreholeStopTime > 0 && millis() - lastBoreholeStopTime < deadTimeMs) {
+            unsigned long waitMs = deadTimeMs - (millis() - lastBoreholeStopTime);
+            Serial.printf("⏳ Waiting Dead-time (%lu ms) after borehole stop before starting filter pump...\n", waitMs);
+            delay(waitMs);
+        }
 
         // Step 3: สตาร์ทปั๊มดันน้ำ
         startFilterPump();

@@ -704,7 +704,9 @@ public:
             else if (action == "garden_zone1_start") {
                 uint16_t dur = server.hasArg("dur") ? server.arg("dur").toInt() : 15;
                 if (dur == 0) dur = 15;
-                if (currentGardenZone == 0 && currentPoolTaskZone == 0 && !stateBorehole && currentError == ERR_NONE) {
+                float startThreshold = configManager.config.gardenZ1StartLevel;
+
+                if (currentGardenZone == 0 && !stateBorehole && currentError == ERR_NONE && (tankData.waterLevelPercent >= startThreshold || tankData.waterLevelPercent <= 0.0f)) {
                     if (HardwareController::startGardenZone(1, dur)) {
                         server.send(200, "application/json", "{\"msg\":\"🌱 เริ่มรดน้ำโซน 1 (SV3) จำนวน " + String(dur) + " นาที\"}");
                     } else {
@@ -716,9 +718,13 @@ public:
                     }
                 } else if (currentError == ERR_NONE) {
                     // เข้ารอในคิว Priority 1
-                    TaskQueueManager::enqueue(TASK_GARDEN_MANUAL, 1, dur, "รดน้ำโซน 1 (คำสั่งด่วน)");
+                    String qName = "รดน้ำโซน 1 (คำสั่งด่วน)";
+                    if (tankData.waterLevelPercent > 0.0f && tankData.waterLevelPercent < startThreshold) {
+                        qName += " - รอน้ำถึง " + String((int)startThreshold) + "%";
+                    }
+                    TaskQueueManager::enqueue(TASK_GARDEN_MANUAL, 1, dur, qName);
                     HardwareController::soundBeep(2, 80);
-                    server.send(200, "application/json", "{\"msg\":\"⏳ เพิ่ม 'รดน้ำโซน 1' เข้าคิวลำดับความสำคัญสูงสุดเรียบร้อย (ระบบจะรันทันทีเมื่องานปัจจุบันเสร็จ/หยุดปั๊มบาดาล)\"}");
+                    server.send(200, "application/json", "{\"msg\":\"⏳ เพิ่ม 'รดน้ำโซน 1' เข้าคิวเรียบร้อย (ระบบจะรันทันทีเมื่องานปัจจุบันเสร็จ/น้ำในแทงค์ถึง " + String((int)startThreshold) + "%)\"}");
                 } else {
                     server.send(200, "application/json", "{\"msg\":\"⚠️ ระบบติดสถานะ Error Alarm (E" + String(currentError) + ") กรุณารีเซ็ต Alarm ก่อนสั่งงาน\", \"error\":true}");
                 }
@@ -726,7 +732,9 @@ public:
             else if (action == "garden_zone2_start") {
                 uint16_t dur = server.hasArg("dur") ? server.arg("dur").toInt() : 15;
                 if (dur == 0) dur = 15;
-                if (currentGardenZone == 0 && currentPoolTaskZone == 0 && !stateBorehole && currentError == ERR_NONE) {
+                float startThreshold = configManager.config.gardenZ2StartLevel;
+
+                if (currentGardenZone == 0 && !stateBorehole && currentError == ERR_NONE && (tankData.waterLevelPercent >= startThreshold || tankData.waterLevelPercent <= 0.0f)) {
                     if (HardwareController::startGardenZone(2, dur)) {
                         server.send(200, "application/json", "{\"msg\":\"🌱 เริ่มรดน้ำโซน 2 (SV4) จำนวน " + String(dur) + " นาที\"}");
                     } else {
@@ -738,9 +746,13 @@ public:
                     }
                 } else if (currentError == ERR_NONE) {
                     // เข้ารอในคิว Priority 1
-                    TaskQueueManager::enqueue(TASK_GARDEN_MANUAL, 2, dur, "รดน้ำโซน 2 (คำสั่งด่วน)");
+                    String qName = "รดน้ำโซน 2 (คำสั่งด่วน)";
+                    if (tankData.waterLevelPercent > 0.0f && tankData.waterLevelPercent < startThreshold) {
+                        qName += " - รอน้ำถึง " + String((int)startThreshold) + "%";
+                    }
+                    TaskQueueManager::enqueue(TASK_GARDEN_MANUAL, 2, dur, qName);
                     HardwareController::soundBeep(2, 80);
-                    server.send(200, "application/json", "{\"msg\":\"⏳ เพิ่ม 'รดน้ำโซน 2' เข้าคิวลำดับความสำคัญสูงสุดเรียบร้อย (ระบบจะรันทันทีเมื่องานปัจจุบันเสร็จ/หยุดปั๊มบาดาล)\"}");
+                    server.send(200, "application/json", "{\"msg\":\"⏳ เพิ่ม 'รดน้ำโซน 2' เข้าคิวเรียบร้อย (ระบบจะรันทันทีเมื่องานปัจจุบันเสร็จ/น้ำในแทงค์ถึง " + String((int)startThreshold) + "%)\"}");
                 } else {
                     server.send(200, "application/json", "{\"msg\":\"⚠️ ระบบติดสถานะ Error Alarm (E" + String(currentError) + ") กรุณารีเซ็ต Alarm ก่อนสั่งงาน\", \"error\":true}");
                 }

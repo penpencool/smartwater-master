@@ -169,14 +169,17 @@ public:
             }
         }
 
-        // 2. Garden Sprinkler Auto Task & Schedule
+        // 2. Garden Sprinkler Auto Task Timer
         if (currentGardenZone > 0) {
             if (millis() - gardenTaskStartTime >= gardenTaskDurationMs) {
                 Serial.printf("🌱 Garden Sprinkler Zone %d finished. Stopping...\n", currentGardenZone);
                 HardwareController::stopGardenSprinkler();
                 HardwareController::soundBeep(2, 100);
             }
-        } else if (currentPoolTaskZone == 0) {
+        }
+        
+        // 2b. Garden Schedule Checker (Can preempt pool top-up to maintain watering schedule)
+        if (currentGardenZone == 0) {
             struct tm timeinfo;
             if (getLocalTime(&timeinfo, 0)) {
                 for (uint8_t i = 0; i < configManager.config.scheduleCount; i++) {
@@ -201,6 +204,10 @@ public:
                                                   i + 1, tankData.waterLevelPercent, startThreshold, slot.zone);
                                     TaskQueueManager::enqueue(TASK_GARDEN_AUTO, slot.zone, durationMin, "รดน้ำโซน " + String(slot.zone) + " (ตามตาราง - รอน้ำถึง " + String((int)startThreshold) + "%)");
                                 }
+                                break;
+                            } else {
+                                Serial.printf("⏰ [SCHEDULE Slot %d] System busy / borehole active -> Queued Zone %d.\n", i + 1, slot.zone);
+                                TaskQueueManager::enqueue(TASK_GARDEN_AUTO, slot.zone, durationMin, "รดน้ำโซน " + String(slot.zone) + " (ตามตาราง)");
                                 break;
                             }
                         }
@@ -307,6 +314,7 @@ public:
             // หากระดับน้ำเต็มตามเป้า (>= 95%) หรือลูกลอยตัด -> สั่งปิดปั๊มบาดาล
             else if (stateBorehole && (tankData.waterLevelPercent >= configManager.config.tankFullStop || tankData.floatBackupActive)) {
                 stateBorehole = false;
+                lastBoreholeStopTime = millis();
                 HardwareController::setRelay(RELAY_BOREHOLE, false);
                 HardwareController::soundBeep(2, 100);
                 Serial.printf("⚡ [AUTO BOREHOLE] Tank full (%.1f%%) or float backup triggered -> Stopped Borehole Pump.\n",
@@ -369,7 +377,10 @@ public:
         }
 
         // 6. 🚀 Priority Task Queue Dispatcher (ประมวลผลคิวตามลำดับความสำคัญเมื่อระบบว่าง และระดับน้ำถึงเกณฑ์เริ่ม)
-        if (currentGardenZone == 0 && currentPoolTaskZone == 0 && !stateBorehole && currentError == ERR_NONE) {
+        unsigned long deadTimeMs = (configManager.config.deadTimeSec > 0) ? ((unsigned long)configManager.config.deadTimeSec * 1000UL) : 3000UL;
+        bool deadTimePassed = (lastBoreholeStopTime == 0) || (millis() - lastBoreholeStopTime >= deadTimeMs);
+
+        if (currentGardenZone == 0 && currentPoolTaskZone == 0 && !stateBorehole && deadTimePassed && currentError == ERR_NONE) {
             TaskQueueItem nextTask;
             for (uint8_t i = 0; i < taskQueueCount; i++) {
                 if (millis() >= taskQueue[i].executeAtMillis) {
