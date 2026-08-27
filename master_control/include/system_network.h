@@ -100,6 +100,12 @@ public:
                 lastNode3Time = millis();
                 lastNode3TimeStr = nowTime;
 
+                // 🟢 Auto-Recovery: หากเคยติด Alarm เซ็นเซอร์หลุด (E3) เมื่อได้รับข้อมูลแล้วให้ปลดล็อกทันที
+                if (currentError == ERR_NODE_LOST) {
+                    currentError = ERR_NONE;
+                    Serial.println("🟢 [ESP-NOW Recv Node 3] Auto-cleared Alarm E3 (Sensor Reconnected)!");
+                }
+
                 // 💧 Master ส่วนกลางคำนวณระดับน้ำเป็น % จากระยะ cm ที่ Node 3 ส่งมา
                 float emptyCm = configManager.config.tankEmptyCm;
                 float fullCm  = configManager.config.tankFullCm;
