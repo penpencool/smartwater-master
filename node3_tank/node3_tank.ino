@@ -171,6 +171,9 @@ void setup() {
     WiFi.mode(WIFI_STA);
     WiFi.disconnect();
 
+    // Disable WiFi sleep for rock-solid ESP-NOW transmission & reception
+    esp_wifi_set_ps(WIFI_PS_NONE);
+
     if (esp_now_init() != ESP_OK) {
         Serial.println("ESP-NOW Init Failed!");
         return;
@@ -206,7 +209,7 @@ void loop() {
     // 4. บรรจุ Payload
     payload.nodeId = NODE_WATER_TANK;
     payload.waterLevelPercent = waterPct;
-    payload.distanceCm = (distanceCm > 0) ? distanceCm : 0.0f;
+    payload.distanceCm = distanceCm;
     payload.floatBackupActive = floatActive;
     payload.batteryVoltage = batV;
     payload.currentEmptyCm = distTankEmptyCm;

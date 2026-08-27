@@ -128,7 +128,7 @@ void setup() {
     xTaskCreatePinnedToCore(
         networkTask,        // Task function
         "NetworkTask",      // Task name
-        8192,               // Stack size (8KB)
+        16384,              // Stack size (16KB for JSON & WebServer buffers)
         NULL,               // Parameters
         1,                  // Priority
         NULL,               // Task Handle

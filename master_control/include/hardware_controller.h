@@ -47,15 +47,24 @@ public:
     }
 
     static void stopAllOutputs() {
-        StateLock lock;
-        stateBorehole = false;
-        stateFilterPump = false;
-        stateMainA = false;
-        stateMainB = false;
-        stateSV1 = false;
-        stateSV2 = false;
-        stateSV3 = false;
-        stateSV4 = false;
+        {
+            StateLock lock;
+            stateBorehole = false;
+            stateFilterPump = false;
+            stateMainA = false;
+            stateMainB = false;
+            stateSV1 = false;
+            stateSV2 = false;
+            stateSV3 = false;
+            stateSV4 = false;
+
+            flowWatchdogActive = false;
+            isManualPoolTask = false; // BUG-1 FIX: รีเซ็ต flag เพื่อไม่ให้ค้างหลัง Safety Cutoff
+            currentGardenZone = 0;
+            currentPoolTaskZone = 0;
+            activeTaskName = "";
+            TaskQueueManager::clear();
+        }
 
         setRelay(RELAY_BOREHOLE, false);
         triggerPulse(RELAY_FILTER_OFF, 400);
@@ -65,29 +74,26 @@ public:
         setRelay(RELAY_SV2, false);
         setRelay(RELAY_SV3, false);
         setRelay(RELAY_SV4, false);
-
-        flowWatchdogActive = false;
-        isManualPoolTask = false; // BUG-1 FIX: รีเซ็ต flag เพื่อไม่ให้ค้างหลัง Safety Cutoff
-        currentGardenZone = 0;
-        currentPoolTaskZone = 0;
-        activeTaskName = "";
-        TaskQueueManager::clear();
     }
 
     static void startFilterPump() {
-        StateLock lock;
+        {
+            StateLock lock;
+            stateFilterPump = true;
+            filterPumpStartTime = millis();
+            flowWatchdogActive = true;
+        }
         triggerPulse(RELAY_FILTER_ON, 400);
-        stateFilterPump = true;
-        filterPumpStartTime = millis();
-        flowWatchdogActive = true;
         soundBeep(1, 150);
     }
 
     static void stopFilterPump() {
-        StateLock lock;
+        {
+            StateLock lock;
+            stateFilterPump = false;
+            flowWatchdogActive = false;
+        }
         triggerPulse(RELAY_FILTER_OFF, 400);
-        stateFilterPump = false;
-        flowWatchdogActive = false;
         soundBeep(1, 100);
     }
 

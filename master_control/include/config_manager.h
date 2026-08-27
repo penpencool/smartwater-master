@@ -22,6 +22,8 @@ struct SystemConfig {
     float tankLowTrigger;       // สั่งเปิดบาดาลเมื่อน้ำ < ค่านี้ (เช่น 70%)
     float tankFullStop;         // สั่งปิดบาดาลเมื่อน้ำ >= ค่านี้ (เช่น 95%)
     float tankSafeCutoff;       // ตัดปั๊มดันน้ำหากน้ำ < ค่านี้ (เช่น 25%)
+    float tankEmptyCm;          // ระยะแทงค์แห้ง 0% (เช่น 180.0 cm)
+    float tankFullCm;           // ระยะแทงค์เต็ม 100% (เช่น 25.0 cm)
 
     // Dynamic Garden Schedules (Smart Home style Start Time - End Time)
     uint8_t scheduleCount;
@@ -80,6 +82,8 @@ public:
         config.tankLowTrigger   = prefs.getFloat("tankLow", 70.0f);
         config.tankFullStop     = prefs.getFloat("tankFull", 95.0f);
         config.tankSafeCutoff   = prefs.getFloat("tankSafe", 25.0f);
+        config.tankEmptyCm      = prefs.getFloat("tankEmpty", 180.0f);
+        config.tankFullCm       = prefs.getFloat("tankFull_cm", 25.0f);
 
         // Load Dynamic Schedules
         config.scheduleCount = prefs.getUChar("schedCount", 2);
@@ -133,6 +137,8 @@ public:
         config.tankLowTrigger = 70.0f;
         config.tankFullStop = 95.0f;
         config.tankSafeCutoff = 25.0f;
+        config.tankEmptyCm = 180.0f;
+        config.tankFullCm = 25.0f;
 
         config.scheduleCount = 2;
         // Default Slot 0: Zone 1 (06:30 - 06:45)
@@ -173,6 +179,8 @@ public:
         prefs.putFloat("tankLow", config.tankLowTrigger);
         prefs.putFloat("tankFull", config.tankFullStop);
         prefs.putFloat("tankSafe", config.tankSafeCutoff);
+        prefs.putFloat("tankEmpty", config.tankEmptyCm);
+        prefs.putFloat("tankFull_cm", config.tankFullCm);
 
         prefs.putUChar("schedCount", config.scheduleCount);
         for (uint8_t i = 0; i < MAX_SCHEDULE_SLOTS; i++) {

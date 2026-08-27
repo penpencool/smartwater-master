@@ -97,8 +97,8 @@ public:
             doc["solarLux"] = solarData.lightLux;
 
             // Tank NVS Calibration Params
-            doc["tankEmptyCm"] = (tankData.currentEmptyCm > 0) ? tankData.currentEmptyCm : 180.0f;
-            doc["tankFullCm"] = (tankData.currentFullCm > 0) ? tankData.currentFullCm : 25.0f;
+            doc["tankEmptyCm"] = (tankData.currentEmptyCm > 0) ? tankData.currentEmptyCm : configManager.config.tankEmptyCm;
+            doc["tankFullCm"] = (tankData.currentFullCm > 0) ? tankData.currentFullCm : configManager.config.tankFullCm;
 
             // Queue Status & Items
             doc["queueCount"] = taskQueueCount;
@@ -275,7 +275,7 @@ public:
         });
 
         // 5. Tank Calibration API
-        server.on("/api/tank_calibrate", HTTP_POST, [&server]() {
+        server.on("/api/tank_calibrate", HTTP_POST, [&server, &configManager]() {
             if (!server.hasArg("empty") || !server.hasArg("full")) {
                 server.send(400, "application/json", "{\"error\":\"Missing params\"}");
                 return;
@@ -289,6 +289,15 @@ public:
                 return;
             }
 
+            // บันทึกลง Master NVS
+            {
+                StateLock lock;
+                configManager.config.tankEmptyCm = emptyVal;
+                configManager.config.tankFullCm = fullVal;
+                configManager.save();
+            }
+
+            // ส่งแพ็กเก็ต Calibration ไปยัง Node 3 ผ่าน ESP-NOW
             TankCalibrationPayload calib;
             calib.msgType = NODE_TANK_CALIBRATE;
             calib.distEmptyCm = emptyVal;
@@ -298,11 +307,11 @@ public:
             uint8_t bcastMac[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
             esp_err_t res = esp_now_send(bcastMac, (uint8_t *)&calib, sizeof(calib));
 
-            Serial.printf("📡 Sent Calibration to Node 3: Empty=%.1f cm, Full=%.1f cm (Result: %s)\n",
+            Serial.printf("📡 Sent Calibration to Node 3: Empty=%.1f cm, Full=%.1f cm (NVS Saved & ESP-NOW: %s)\n",
                           emptyVal, fullVal, (res == ESP_OK) ? "OK" : "FAIL");
 
             HardwareController::soundBeep(1, 150);
-            server.send(200, "application/json", "{\"msg\":\"✅ ส่งการตั้งค่าระดับน้ำไปยัง Node 3 เรียบร้อย (Empty: " + String(emptyVal, 0) + "cm, Full: " + String(fullVal, 0) + "cm)\"}");
+            server.send(200, "application/json", "{\"msg\":\"✅ บันทึกลง Master NVS และส่งการตั้งค่าระดับน้ำไปยัง Node 3 เรียบร้อย (Empty: " + String(emptyVal, 0) + "cm, Full: " + String(fullVal, 0) + "cm)\"}");
         });
 
         // 6. System Parameters Config API (Offline Timeout, etc.)

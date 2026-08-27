@@ -88,7 +88,7 @@ const char DASHBOARD_BODY[] PROGMEM = R"rawliteral(
       <div class="card">
         <div class="card-title">
           <span>แทงค์พักน้ำ 6,000L (Node 3)</span>
-          <span id="node3Status" style="font-size: 0.8rem; color: #10b981;">● Online</span>
+          <span id="node3Status" style="font-size: 0.8rem; color: #ef4444;">● Offline</span>
         </div>
         <div class="tank-container">
           <div class="tank-graphic">
@@ -96,9 +96,9 @@ const char DASHBOARD_BODY[] PROGMEM = R"rawliteral(
           </div>
           <div>
             <div id="tankLevelText" class="tank-value">-- %</div>
-            <div id="tankDistText" class="tank-sub">ระยะวัด: -- cm</div>
-            <div id="tankFloatText" class="tank-sub" style="margin-top: 4px;">ลูกลอย Backup: ปกติ</div>
-            <div id="node3LastTime" class="tank-sub" style="margin-top: 4px; color: var(--accent-cyan);">🕒 รับข้อมูลล่าสุด: --</div>
+            <div id="tankDistText" class="tank-sub">ระยะวัด: รอข้อมูล...</div>
+            <div id="tankFloatText" class="tank-sub" style="margin-top: 4px;">ลูกลอย Backup: ไม่ทราบสถานะ</div>
+            <div id="node3LastTime" class="tank-sub" style="margin-top: 4px; color: var(--accent-cyan);">🕒 รอรับข้อมูล...</div>
           </div>
         </div>
       </div>
@@ -111,28 +111,28 @@ const char DASHBOARD_BODY[] PROGMEM = R"rawliteral(
         <div style="background: rgba(15, 23, 42, 0.4); padding: 12px; border-radius: 10px; margin-bottom: 10px; border: 1px solid var(--card-border);">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
             <strong style="color: var(--accent-cyan);">🌊 สระคลื่น (Wave Pool - Node 1)</strong>
-            <span id="node1Badge" style="font-size: 0.8rem; color: #10b981;">● Online</span>
+            <span id="node1Badge" style="font-size: 0.8rem; color: #ef4444;">● Offline</span>
           </div>
           <div style="display:flex; justify-content:space-between; font-size: 0.85rem;">
-            <span>สถานะลูกลอย: <strong id="node1FloatTxt">ปกติ</strong></span>
+            <span>สถานะลูกลอย: <strong id="node1FloatTxt">รอข้อมูล...</strong></span>
             <span id="node1BatTxt" style="color: var(--text-muted);">-- V</span>
           </div>
           <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;" id="node1LastTime">
-            🕒 รับข้อมูลล่าสุด: --
+            🕒 รอรับข้อมูล...
           </div>
         </div>
 
         <div style="background: rgba(15, 23, 42, 0.4); padding: 12px; border-radius: 10px; border: 1px solid var(--card-border);">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
             <strong style="color: #38bdf8;">🏊 สระเล่น (Play Pool - Node 2)</strong>
-            <span id="node2Badge" style="font-size: 0.8rem; color: #10b981;">● Online</span>
+            <span id="node2Badge" style="font-size: 0.8rem; color: #ef4444;">● Offline</span>
           </div>
           <div style="display:flex; justify-content:space-between; font-size: 0.85rem;">
-            <span>สถานะลูกลอย: <strong id="node2FloatTxt">ปกติ</strong></span>
+            <span>สถานะลูกลอย: <strong id="node2FloatTxt">รอข้อมูล...</strong></span>
             <span id="node2BatTxt" style="color: var(--text-muted);">-- V</span>
           </div>
           <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;" id="node2LastTime">
-            🕒 รับข้อมูลล่าสุด: --
+            🕒 รอรับข้อมูล...
           </div>
         </div>
       </div>

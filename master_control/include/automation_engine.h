@@ -55,23 +55,25 @@ public:
     }
 
     static void handleLoop(ConfigManager &configManager) {
-        StateLock lock;
         handleStatusIndicators();
 
         // รักษาเวลาของโหมดจำลองระดับน้ำ Node 3 ไม่ให้ Timeout
         if (simTankActive) {
+            StateLock lock;
             lastNode3Time = millis();
             tankData.waterLevelPercent = simTankLevel;
         }
 
         // รักษาเวลาของโหมดจำลองระดับน้ำสระคลื่น (Node 1)
         if (simPool1Active) {
+            StateLock lock;
             lastNode1Time = millis();
             pool1Data.waterLow = simPool1Low;
         }
 
         // รักษาเวลาของโหมดจำลองระดับน้ำสระเล่น (Node 2)
         if (simPool2Active) {
+            StateLock lock;
             lastNode2Time = millis();
             pool2Data.waterLow = simPool2Low;
         }

@@ -186,21 +186,18 @@ function updateData() {
       const node1Bat = document.getElementById('node1BatTxt');
       const node1Time = document.getElementById('node1LastTime');
       if (data.node1Online) {
-        node1Badge.innerText = '● Online';
-        node1Badge.style.color = '#10b981';
-        node1Float.innerText = data.node1WaterLow ? '⚠️ น้ำลด (ต้องการเติม)' : '🟢 ปกติ (น้ำเต็ม)';
-        node1Float.style.color = data.node1WaterLow ? '#ef4444' : '#10b981';
-        node1Bat.innerText = data.node1Battery.toFixed(2) + ' V';
+        if (node1Badge) { node1Badge.innerText = '● Online'; node1Badge.style.color = '#10b981'; }
+        if (node1Float) {
+          node1Float.innerText = data.node1WaterLow ? '⚠️ น้ำลด (ต้องการเติม)' : '🟢 ปกติ (น้ำเต็ม)';
+          node1Float.style.color = data.node1WaterLow ? '#ef4444' : '#10b981';
+        }
+        if (node1Bat) node1Bat.innerText = (data.node1Battery !== undefined ? data.node1Battery.toFixed(2) : '--') + ' V';
         if (node1Time) node1Time.innerText = '🕒 รับข้อมูลล่าสุด: ' + (data.lastNode1Time || '--:--:--');
       } else {
-        node1Badge.innerText = '● Offline';
-        node1Badge.style.color = '#ef4444';
-        node1Float.innerText = 'ออฟไลน์';
-        node1Float.style.color = '#94a3b8';
-        node1Bat.innerText = '-- V';
-        if (node1Time) {
-          node1Time.innerText = '🕒 ขาดการติดต่อตั้งแต่: ' + (data.lastNode1Time || 'ไม่เคยเชื่อมต่อ');
-        }
+        if (node1Badge) { node1Badge.innerText = '● Offline'; node1Badge.style.color = '#ef4444'; }
+        if (node1Float) { node1Float.innerText = 'ออฟไลน์'; node1Float.style.color = '#94a3b8'; }
+        if (node1Bat) node1Bat.innerText = '-- V';
+        if (node1Time) node1Time.innerText = '🕒 ขาดการติดต่อตั้งแต่: ' + (data.lastNode1Time || 'ไม่เคยเชื่อมต่อ');
       }
 
       // Node 2 (Play Pool)
@@ -209,45 +206,49 @@ function updateData() {
       const node2Bat = document.getElementById('node2BatTxt');
       const node2Time = document.getElementById('node2LastTime');
       if (data.node2Online) {
-        node2Badge.innerText = '● Online';
-        node2Badge.style.color = '#10b981';
-        node2Float.innerText = data.node2WaterLow ? '⚠️ น้ำลด (ต้องการเติม)' : '🟢 ปกติ (น้ำเต็ม)';
-        node2Float.style.color = data.node2WaterLow ? '#ef4444' : '#10b981';
-        node2Bat.innerText = data.node2Battery.toFixed(2) + ' V';
+        if (node2Badge) { node2Badge.innerText = '● Online'; node2Badge.style.color = '#10b981'; }
+        if (node2Float) {
+          node2Float.innerText = data.node2WaterLow ? '⚠️ น้ำลด (ต้องการเติม)' : '🟢 ปกติ (น้ำเต็ม)';
+          node2Float.style.color = data.node2WaterLow ? '#ef4444' : '#10b981';
+        }
+        if (node2Bat) node2Bat.innerText = (data.node2Battery !== undefined ? data.node2Battery.toFixed(2) : '--') + ' V';
         if (node2Time) node2Time.innerText = '🕒 รับข้อมูลล่าสุด: ' + (data.lastNode2Time || '--:--:--');
       } else {
-        node2Badge.innerText = '● Offline';
-        node2Badge.style.color = '#ef4444';
-        node2Float.innerText = 'ออฟไลน์';
-        node2Float.style.color = '#94a3b8';
-        node2Bat.innerText = '-- V';
-        if (node2Time) {
-          node2Time.innerText = '🕒 ขาดการติดต่อตั้งแต่: ' + (data.lastNode2Time || 'ไม่เคยเชื่อมต่อ');
-        }
+        if (node2Badge) { node2Badge.innerText = '● Offline'; node2Badge.style.color = '#ef4444'; }
+        if (node2Float) { node2Float.innerText = 'ออฟไลน์'; node2Float.style.color = '#94a3b8'; }
+        if (node2Bat) node2Bat.innerText = '-- V';
+        if (node2Time) node2Time.innerText = '🕒 ขาดการติดต่อตั้งแต่: ' + (data.lastNode2Time || 'ไม่เคยเชื่อมต่อ');
       }
 
       // Node 3 Tank
       const node3StatusEl = document.getElementById('node3Status');
       const node3Time = document.getElementById('node3LastTime');
+      const lvlTextEl = document.getElementById('tankLevelText');
+      const lvlBarEl = document.getElementById('tankLevelBar');
+      const distTextEl = document.getElementById('tankDistText');
+      const floatTextEl = document.getElementById('tankFloatText');
+
       if (data.node3Online) {
-        node3StatusEl.innerText = '● Online';
-        node3StatusEl.style.color = '#10b981';
-        const lvl = data.tankLevel.toFixed(1);
-        document.getElementById('tankLevelText').innerText = lvl + ' %';
-        document.getElementById('tankLevelBar').style.height = lvl + '%';
-        document.getElementById('tankDistText').innerText = 'ระยะวัด: ' + data.tankDist.toFixed(1) + ' cm';
-        document.getElementById('tankFloatText').innerText = 'ลูกลอย Backup: ' + (data.tankFloat ? '⚠️ สูงสุด (ตัด)' : 'ปกติ');
+        if (node3StatusEl) { node3StatusEl.innerText = '● Online'; node3StatusEl.style.color = '#10b981'; }
+        const lvl = (data.tankLevel !== undefined) ? data.tankLevel.toFixed(1) : '0.0';
+        if (lvlTextEl) lvlTextEl.innerText = lvl + ' %';
+        if (lvlBarEl) lvlBarEl.style.height = lvl + '%';
+        if (distTextEl) {
+          if (data.tankDist >= 0) {
+            distTextEl.innerText = 'ระยะวัด: ' + data.tankDist.toFixed(1) + ' cm';
+          } else {
+            distTextEl.innerText = 'ระยะวัด: ⚠️ เซ็นเซอร์อ่านไม่สำเร็จ (No Echo)';
+          }
+        }
+        if (floatTextEl) floatTextEl.innerText = 'ลูกลอย Backup: ' + (data.tankFloat ? '⚠️ สูงสุด (ตัด)' : 'ปกติ');
         if (node3Time) node3Time.innerText = '🕒 รับข้อมูลล่าสุด: ' + (data.lastNode3Time || '--:--:--');
       } else {
-        node3StatusEl.innerText = '● Offline';
-        node3StatusEl.style.color = '#ef4444';
-        document.getElementById('tankLevelText').innerText = '-- %';
-        document.getElementById('tankLevelBar').style.height = '0%';
-        document.getElementById('tankDistText').innerText = 'ระยะวัด: ออฟไลน์';
-        document.getElementById('tankFloatText').innerText = 'ลูกลอย Backup: ไม่ทราบสถานะ';
-        if (node3Time) {
-          node3Time.innerText = '🕒 ขาดการติดต่อตั้งแต่: ' + (data.lastNode3Time || 'ไม่เคยเชื่อมต่อ');
-        }
+        if (node3StatusEl) { node3StatusEl.innerText = '● Offline'; node3StatusEl.style.color = '#ef4444'; }
+        if (lvlTextEl) lvlTextEl.innerText = '-- %';
+        if (lvlBarEl) lvlBarEl.style.height = '0%';
+        if (distTextEl) distTextEl.innerText = 'ระยะวัด: ออฟไลน์';
+        if (floatTextEl) floatTextEl.innerText = 'ลูกลอย Backup: ไม่ทราบสถานะ';
+        if (node3Time) node3Time.innerText = '🕒 ขาดการติดต่อตั้งแต่: ' + (data.lastNode3Time || 'ไม่เคยเชื่อมต่อ');
       }
 
       // Node 4 Solar
