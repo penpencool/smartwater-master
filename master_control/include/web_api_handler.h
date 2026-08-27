@@ -54,6 +54,8 @@ public:
             bool _apActive; int _apClients; unsigned long _apStartTime;
             char _githubRepo[64];
             char _wifiSSID[64];
+            bool _masterSleep; uint8_t _activeStartH, _activeStartM, _activeEndH, _activeEndM;
+            uint16_t _tNormInt, _tFastInt; float _tFastPct;
 
             unsigned long nowMs;
             {
@@ -124,6 +126,16 @@ public:
                 _githubRepo[sizeof(_githubRepo)-1] = '\0';
                 strncpy(_wifiSSID, configManager.config.wifiSSID, sizeof(_wifiSSID)-1);
                 _wifiSSID[sizeof(_wifiSSID)-1] = '\0';
+
+                // Power & Tank Sampling Config
+                _masterSleep  = configManager.config.masterSleepEnabled;
+                _activeStartH = configManager.config.activeStartHour;
+                _activeStartM = configManager.config.activeStartMin;
+                _activeEndH   = configManager.config.activeEndHour;
+                _activeEndM   = configManager.config.activeEndMin;
+                _tNormInt     = configManager.config.tankNormalIntervalSec;
+                _tFastInt     = configManager.config.tankFastIntervalSec;
+                _tFastPct     = configManager.config.tankFastThresholdPct;
             } // ← Release StateLock ทันทีหลัง copy
 
             // Build JSON จาก local copies (ไม่ต้องถือ lock)
@@ -264,13 +276,79 @@ public:
                 doc["apRemainingSec"] = 0;
             }
 
+            // Power Management & Tank Sampling Info
+            doc["masterSleep"] = _masterSleep;
+            doc["actStartH"] = _activeStartH;
+            doc["actStartM"] = _activeStartM;
+            doc["actEndH"] = _activeEndH;
+            doc["actEndM"] = _activeEndM;
+            doc["tNormInt"] = _tNormInt;
+            doc["tFastInt"] = _tFastInt;
+            doc["tFastPct"] = _tFastPct;
+
             // Firmware & GitHub Info
-            doc["firmwareVer"] = "v1.3.0";
+            doc["firmwareVer"] = "v1.4.0";
             doc["githubRepo"] = String(_githubRepo);
 
             String response;
             serializeJson(doc, response);
             server.send(200, "application/json", response);
+        });
+
+        // 2b. Power & Sleep Schedule Config API
+        server.on("/api/power_config", HTTP_POST, [&server, &configManager]() {
+            StateLock lock;
+            if (server.hasArg("masterSleep")) {
+                configManager.config.masterSleepEnabled = (server.arg("masterSleep") == "1" || server.arg("masterSleep") == "true");
+            }
+            if (server.hasArg("actStartH")) {
+                configManager.config.activeStartHour = server.arg("actStartH").toInt();
+            }
+            if (server.hasArg("actStartM")) {
+                configManager.config.activeStartMin = server.arg("actStartM").toInt();
+            }
+            if (server.hasArg("actEndH")) {
+                configManager.config.activeEndHour = server.arg("actEndH").toInt();
+            }
+            if (server.hasArg("actEndM")) {
+                configManager.config.activeEndMin = server.arg("actEndM").toInt();
+            }
+
+            configManager.save();
+            HardwareController::soundBeep(1, 100);
+
+            Serial.printf("⚙️ Updated Power Schedule: MasterSleep=%s, Active Window: %02d:%02d - %02d:%02d\n",
+                          configManager.config.masterSleepEnabled ? "ON" : "OFF",
+                          configManager.config.activeStartHour, configManager.config.activeStartMin,
+                          configManager.config.activeEndHour, configManager.config.activeEndMin);
+
+            server.send(200, "application/json", "{\"msg\":\"✅ บันทึกช่วงเวลาทำงานและโหมดประหยัดพลังงานเรียบร้อย\"}");
+        });
+
+        // 2c. 2-Stage Tank Sampling Config API
+        server.on("/api/tank_sampling_config", HTTP_POST, [&server, &configManager]() {
+            StateLock lock;
+            if (server.hasArg("tNormInt")) {
+                configManager.config.tankNormalIntervalSec = server.arg("tNormInt").toInt();
+                if (configManager.config.tankNormalIntervalSec < 1) configManager.config.tankNormalIntervalSec = 1;
+            }
+            if (server.hasArg("tFastInt")) {
+                configManager.config.tankFastIntervalSec = server.arg("tFastInt").toInt();
+                if (configManager.config.tankFastIntervalSec < 1) configManager.config.tankFastIntervalSec = 1;
+            }
+            if (server.hasArg("tFastPct")) {
+                configManager.config.tankFastThresholdPct = server.arg("tFastPct").toFloat();
+            }
+
+            configManager.save();
+            HardwareController::soundBeep(1, 100);
+
+            Serial.printf("⚙️ Updated Tank Sampling: Normal=%ds, Fast=%ds (when >= %.1f%% or Borehole Active)\n",
+                          configManager.config.tankNormalIntervalSec,
+                          configManager.config.tankFastIntervalSec,
+                          configManager.config.tankFastThresholdPct);
+
+            server.send(200, "application/json", "{\"msg\":\"✅ บันทึกความถี่การส่งข้อมูลเซ็นเซอร์แทงค์น้ำเรียบร้อย\"}");
         });
 
         // 3. Pool Auto Top-Up & Water Threshold Config API

@@ -100,6 +100,55 @@ public:
             }
         }
 
+        // 0b. 🌙 Power Management & Deep Sleep Schedule (Master Controller)
+        if (configManager.config.masterSleepEnabled && ntpSynced) {
+            struct tm timeinfo;
+            if (getLocalTime(&timeinfo, 0)) {
+                int nowM = timeinfo.tm_hour * 60 + timeinfo.tm_min;
+                int startM = configManager.config.activeStartHour * 60 + configManager.config.activeStartMin;
+                int endM = configManager.config.activeEndHour * 60 + configManager.config.activeEndMin;
+
+                bool isOffHours = false;
+                int minsUntilWake = 0;
+
+                if (startM < endM) {
+                    // ช่วงเวลาทำงานกลางวัน เช่น 06:00 - 18:00
+                    if (nowM >= endM) {
+                        isOffHours = true;
+                        minsUntilWake = (24 * 60 - nowM) + startM;
+                    } else if (nowM < startM) {
+                        isOffHours = true;
+                        minsUntilWake = startM - nowM;
+                    }
+                } else if (startM > endM) {
+                    // ช่วงเวลาทำงานข้ามคืน เช่น 18:00 - 06:00
+                    if (nowM >= endM && nowM < startM) {
+                        isOffHours = true;
+                        minsUntilWake = startM - nowM;
+                    }
+                }
+
+                // หากอยู่นอกเวลาทำงาน และไม่มีงานสูบน้ำค้างอยู่ ให้เข้าโหมด Deep Sleep ทันที
+                if (isOffHours && minsUntilWake > 0 && currentGardenZone == 0 && currentPoolTaskZone == 0 && !stateBorehole) {
+                    Serial.printf("🌙 [POWER MGMT] Reached end of active window (%02d:%02d - %02d:%02d). Shutting down all loads and entering Deep Sleep for %d minutes (until %02d:%02d)...\n",
+                                  configManager.config.activeStartHour, configManager.config.activeStartMin,
+                                  configManager.config.activeEndHour, configManager.config.activeEndMin,
+                                  minsUntilWake,
+                                  configManager.config.activeStartHour, configManager.config.activeStartMin);
+
+                    HardwareController::stopAllOutputs();
+                    digitalWrite(PIN_SYS_LED, LOW);
+                    digitalWrite(PIN_ERR_LED, LOW);
+                    HardwareController::soundBeep(1, 400);
+                    delay(200);
+
+                    uint64_t sleepUs = (uint64_t)minsUntilWake * 60ULL * 1000000ULL;
+                    esp_sleep_enable_timer_wakeup(sleepUs);
+                    esp_deep_sleep_start();
+                }
+            }
+        }
+
         // 1. Pool Top-Up Auto Task Timer
         if (currentPoolTaskZone > 0) {
             if (millis() - poolTaskStartTime >= poolTaskDurationMs) {

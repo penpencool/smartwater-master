@@ -62,6 +62,18 @@ struct SystemConfig {
     uint16_t poolTopUpDelayMin;     // เติมน้ำต่อหลังลูกลอยยกตัว (เช่น 5 นาที)
     uint16_t nodeOfflineTimeoutMin; // เซ็นเซอร์ไม่ส่งข้อมูลเกินกี่นาที ถึงจะนับว่า Offline (เช่น 3 นาที)
 
+    // 💤 Power Management & Sleep Schedule (Master & Nodes)
+    bool masterSleepEnabled;        // เปิด/ปิด โหมด Master Deep Sleep นอกเวลาทำงาน
+    uint8_t activeStartHour;        // ชั่วโมงเริ่มทำงาน (เช่น 6 = 06:00)
+    uint8_t activeStartMin;         // นาทีเริ่มทำงาน (เช่น 0 = :00)
+    uint8_t activeEndHour;          // ชั่วโมงสิ้นสุด/เริ่มหลับ (เช่น 18 = 18:00)
+    uint8_t activeEndMin;           // นาทีสิ้นสุด/เริ่มหลับ (เช่น 0 = :00)
+
+    // ⚡ 2-Stage Adaptive Tank Sampling (Node 3)
+    uint16_t tankNormalIntervalSec; // ความถี่ส่งข้อมูลช่วงปกติ (เช่น 30 วินาที)
+    uint16_t tankFastIntervalSec;   // ความถี่ส่งข้อมูลช่วงใกล้เต็ม/เติมน้ำ (เช่น 3 วินาที)
+    float tankFastThresholdPct;     // ระดับน้ำที่เริ่มส่งถี่ (%) (เช่น 80.0%)
+
     // Wi-Fi Config
     char wifiSSID[32];
     char wifiPassword[64];
@@ -141,6 +153,18 @@ public:
         config.poolTopUpDelayMin= prefs.getUShort("poolDelay", 5);
         config.nodeOfflineTimeoutMin = prefs.getUShort("nodeOffMin", 2);
 
+        // Power Management & Sleep Schedule
+        config.masterSleepEnabled       = prefs.getBool("mSleepEn", false);
+        config.activeStartHour          = prefs.getUChar("actStartH", 6);
+        config.activeStartMin           = prefs.getUChar("actStartM", 0);
+        config.activeEndHour            = prefs.getUChar("actEndH", 18);
+        config.activeEndMin             = prefs.getUChar("actEndM", 0);
+
+        // 2-Stage Tank Sampling
+        config.tankNormalIntervalSec    = prefs.getUShort("tNormInt", 30);
+        config.tankFastIntervalSec      = prefs.getUShort("tFastInt", 3);
+        config.tankFastThresholdPct     = prefs.getFloat("tFastPct", 80.0f);
+
         String ssid = prefs.getString("ssid", "");
         String pass = prefs.getString("pass", "");
         strncpy(config.wifiSSID, ssid.c_str(), sizeof(config.wifiSSID) - 1);
@@ -199,6 +223,19 @@ public:
         config.deadTimeSec = 10;
         config.poolTopUpDelayMin = 5;
         config.nodeOfflineTimeoutMin = 2;
+
+        // Power Management Defaults
+        config.masterSleepEnabled = false;
+        config.activeStartHour = 6;
+        config.activeStartMin = 0;
+        config.activeEndHour = 18;
+        config.activeEndMin = 0;
+
+        // 2-Stage Tank Sampling Defaults
+        config.tankNormalIntervalSec = 30;
+        config.tankFastIntervalSec = 3;
+        config.tankFastThresholdPct = 80.0f;
+
         memset(config.wifiSSID, 0, sizeof(config.wifiSSID));
         memset(config.wifiPassword, 0, sizeof(config.wifiPassword));
         strncpy(config.githubRepo, "penpencool/smartwater-master", sizeof(config.githubRepo) - 1);
@@ -255,6 +292,17 @@ public:
         prefs.putUShort("deadTime", config.deadTimeSec);
         prefs.putUShort("poolDelay", config.poolTopUpDelayMin);
         prefs.putUShort("nodeOffMin", config.nodeOfflineTimeoutMin);
+
+        // Power Management & Tank Sampling Save
+        prefs.putBool("mSleepEn", config.masterSleepEnabled);
+        prefs.putUChar("actStartH", config.activeStartHour);
+        prefs.putUChar("actStartM", config.activeStartMin);
+        prefs.putUChar("actEndH", config.activeEndHour);
+        prefs.putUChar("actEndM", config.activeEndMin);
+
+        prefs.putUShort("tNormInt", config.tankNormalIntervalSec);
+        prefs.putUShort("tFastInt", config.tankFastIntervalSec);
+        prefs.putFloat("tFastPct", config.tankFastThresholdPct);
 
         prefs.putString("ssid", config.wifiSSID);
         prefs.putString("pass", config.wifiPassword);

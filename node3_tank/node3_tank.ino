@@ -2,6 +2,7 @@
 #include <WiFi.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
+#include <esp_sleep.h>
 
 #include "espnow_types.h"
 
@@ -14,55 +15,75 @@
 #define PIN_BATTERY_ADC     34  // Battery Voltage Divider (ADC Input)
 #define PIN_LED_STATUS      2   // Onboard Blue LED
 
-// Broadcast MAC Address for ESP-NOW (ส่งแบบ Broadcast ให้ Master Controller รับตรง)
+// Broadcast MAC Address for ESP-NOW
 uint8_t broadcastMacAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
-TankNodePayload payload;
-uint32_t msgCount = 0;
+// ==========================================
+// 2. PERSISTENT RTC MEMORY (Across Deep Sleep)
+// ==========================================
+RTC_DATA_ATTR uint32_t rtcBootCount = 0;
+RTC_DATA_ATTR uint32_t rtcMsgCount = 0;
+
+// การตั้งค่าที่ Sync จาก Master (จำไว้ใน RTC RAM ไม่ต้องเขียน Flash)
+RTC_DATA_ATTR bool rtcConfigValid = false;
+RTC_DATA_ATTR bool rtcSleepScheduleEnabled = true;
+RTC_DATA_ATTR uint8_t rtcActiveStartHour = 6;
+RTC_DATA_ATTR uint8_t rtcActiveStartMin = 0;
+RTC_DATA_ATTR uint8_t rtcActiveEndHour = 18;
+RTC_DATA_ATTR uint8_t rtcActiveEndMin = 0;
+
+RTC_DATA_ATTR uint16_t rtcNormalIntervalSec = 30; // ส่งปกติทุก 30 วินาที
+RTC_DATA_ATTR uint16_t rtcFastIntervalSec = 3;    // ส่งถี่ทุก 3 วินาที (ตอนใกล้เต็ม / ปั๊มสูบน้ำเข้า)
+RTC_DATA_ATTR float rtcFastThresholdPct = 80.0f;  // เกณฑ์เริ่มส่งถี่ 80%
+
+RTC_DATA_ATTR bool rtcBoreholeRunning = false;    // ปั๊มบาดาลเปิดอยู่หรือไม่
+RTC_DATA_ATTR uint8_t rtcCurrentHour = 12;
+RTC_DATA_ATTR uint8_t rtcCurrentMin = 0;
+RTC_DATA_ATTR bool rtcTimeSynced = false;
+
+// Flags สำหรับการรันรอบปัจจุบัน
+volatile bool syncReceived = false;
 
 // ==========================================
-// 2. ROBUST SENSOR READING FUNCTIONS (JSN-SR04T V3.0)
+// 3. SENSOR READING FUNCTIONS (JSN-SR04T V3.0)
 // ==========================================
 float readSinglePingDistanceCm() {
-    // 1. เคลียร์ Trigger Pin
     digitalWrite(PIN_TRIG, LOW);
     delayMicroseconds(5);
 
-    // 2. ส่ง Pulse Trigger ความกว้าง 20us (JSN-SR04T V3.0 แนะนำ 20us ขึ้นไป)
+    // Pulse Trigger ความกว้าง 20us
     digitalWrite(PIN_TRIG, HIGH);
     delayMicroseconds(20);
     digitalWrite(PIN_TRIG, LOW);
 
-    // 3. ใช้ pulseInLong พร้อม Timeout 35,000us (~6 เมตร)
+    // Timeout 35,000us (~6 เมตร)
     unsigned long durationUs = pulseInLong(PIN_ECHO, HIGH, 35000);
     if (durationUs == 0) {
-        return -1.0f; // Timeout / No Echo
+        return -1.0f;
     }
 
-    // 4. คำนวณระยะทาง Speed of sound = 343 m/s = 0.0343 cm/us
+    // Speed of sound = 343 m/s = 0.0343 cm/us
     float distance = (durationUs * 0.0343f) / 2.0f;
     return distance;
 }
 
-// ฟังก์ชันอ่านระยะแบบกรองค่า (Median Filter) อ่าน 5 ครั้ง คัดเฉพาะค่าจริง
 float readUltrasonicDistanceCm() {
     float samples[5];
     int validCount = 0;
 
     for (int i = 0; i < 5; i++) {
         float d = readSinglePingDistanceCm();
-        // JSN-SR04T Blind zone อยู่ที่ประมาณ 20cm วัดได้ไกลสุด 450cm
         if (d >= 15.0f && d <= 450.0f) {
             samples[validCount++] = d;
         }
-        delay(35); // หน่วงเวลา 35ms ให้คลื่นสะท้อนสลายตัว
+        delay(25); // หน่วงเวลาสั้นๆ ระหว่างตัวอย่าง
     }
 
     if (validCount == 0) {
-        return -1.0f; // อ่านไม่สำเร็จเลย
+        return -1.0f;
     }
 
-    // เรียงลำดับตัวเลขเพื่อหาค่ามัธยฐาน (Median) ตัด Noise กระโดด
+    // Median Filter
     for (int i = 0; i < validCount - 1; i++) {
         for (int j = i + 1; j < validCount; j++) {
             if (samples[i] > samples[j]) {
@@ -77,7 +98,7 @@ float readUltrasonicDistanceCm() {
 }
 
 float readBatteryVoltage() {
-    // อัตราทด Voltage Divider (R1=100k, R2=100k -> x2.0)
+    // Voltage Divider (R1=100k, R2=100k -> x2.0)
     int rawAdc = analogRead(PIN_BATTERY_ADC);
     float pinVolt = (rawAdc / 4095.0f) * 3.3f;
     float batVolt = pinVolt * 2.0f; 
@@ -85,91 +106,192 @@ float readBatteryVoltage() {
 }
 
 // ==========================================
-// 3. SETUP & LOOP
+// 4. ESP-NOW RECEIVER CALLBACK (Sync Config From Master)
+// ==========================================
+#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+void onDataReceived(const esp_now_recv_info *recvInfo, const uint8_t *incomingData, int len) {
+#else
+void onDataReceived(const uint8_t *mac, const uint8_t *incomingData, int len) {
+#endif
+    if (len >= (int)sizeof(TankSyncConfigPayload)) {
+        uint8_t msgType = incomingData[0];
+        if (msgType == NODE_TANK_SYNC_CFG) {
+            TankSyncConfigPayload syncData;
+            memcpy(&syncData, incomingData, sizeof(TankSyncConfigPayload));
+
+            // บันทึก Config ลง RTC RAM ทันที
+            rtcConfigValid           = true;
+            rtcSleepScheduleEnabled  = syncData.sleepScheduleEnabled;
+            rtcActiveStartHour       = syncData.activeStartHour;
+            rtcActiveStartMin        = syncData.activeStartMin;
+            rtcActiveEndHour         = syncData.activeEndHour;
+            rtcActiveEndMin          = syncData.activeEndMin;
+            rtcNormalIntervalSec     = syncData.normalIntervalSec;
+            rtcFastIntervalSec       = syncData.fastIntervalSec;
+            rtcFastThresholdPct      = syncData.fastThresholdPct;
+            rtcBoreholeRunning       = syncData.isBoreholeRunning;
+            rtcCurrentHour           = syncData.currentHour;
+            rtcCurrentMin            = syncData.currentMin;
+            rtcTimeSynced            = syncData.isNtpSynced;
+
+            syncReceived = true;
+            Serial.printf("📥 [Node 3] Received Sync from Master: Time=%02d:%02d:%02d (NTP=%s) | Normal=%ds, Fast=%ds (Thresh=%.0f%%) | Borehole=%s\n",
+                          syncData.currentHour, syncData.currentMin, syncData.currentSec,
+                          syncData.isNtpSynced ? "YES" : "NO",
+                          syncData.normalIntervalSec, syncData.fastIntervalSec, syncData.fastThresholdPct,
+                          syncData.isBoreholeRunning ? "ON" : "OFF");
+        }
+    }
+}
+
+// ==========================================
+// 5. MAIN LOGIC (Execute Once & Deep Sleep)
 // ==========================================
 void setup() {
+    rtcBootCount++;
     Serial.begin(115200);
-    delay(500);
+    delay(20);
+
     Serial.println("==========================================");
-    Serial.println("Starting Node 3: Water Tank Sensor (Multi-Channel ESP-NOW)...");
-    Serial.printf("Configured Pins: Trig=GPIO %d, Echo=GPIO %d\n", PIN_TRIG, PIN_ECHO);
-    Serial.println("Note: Calibration & % Calculation are handled centrally by Master.");
-    Serial.println("==========================================");
+    Serial.printf("🚀 Node 3 Tank Sensor (Boot #%u) Woke Up!\n", rtcBootCount);
 
     pinMode(PIN_TRIG, OUTPUT);
     pinMode(PIN_ECHO, INPUT);
     pinMode(PIN_FLOAT_BACKUP, INPUT_PULLUP);
     pinMode(PIN_LED_STATUS, OUTPUT);
 
-    // Initial Pins
     digitalWrite(PIN_TRIG, LOW);
-    digitalWrite(PIN_LED_STATUS, LOW);
+    digitalWrite(PIN_LED_STATUS, HIGH); // ติดไฟแสดงสถานะขณะตื่นทำงาน
 
-    // Wi-Fi Station Mode for ESP-NOW
+    // 1. อ่านค่าเซ็นเซอร์ทั้งหมด
+    float distanceCm = readUltrasonicDistanceCm();
+    bool floatActive = (digitalRead(PIN_FLOAT_BACKUP) == LOW);
+    float batV = readBatteryVoltage();
+
+    // 2. เริ่มต้น ESP-NOW
     WiFi.mode(WIFI_STA);
     WiFi.disconnect();
-
-    // Disable WiFi sleep for rock-solid ESP-NOW transmission
     esp_wifi_set_ps(WIFI_PS_NONE);
 
-    if (esp_now_init() != ESP_OK) {
-        Serial.println("ESP-NOW Init Failed!");
-        return;
+    if (esp_now_init() == ESP_OK) {
+        esp_now_register_recv_cb(onDataReceived);
+
+        esp_now_peer_info_t peerInfo = {};
+        memcpy(peerInfo.peer_addr, broadcastMacAddress, 6);
+        peerInfo.channel = 0;
+        peerInfo.encrypt = false;
+        esp_now_add_peer(&peerInfo);
+
+        // 3. เตรียม Payload
+        TankNodePayload payload;
+        payload.nodeId = NODE_WATER_TANK;
+        payload.waterLevelPercent = 0.0f; // Master ส่วนกลางจะคำนวณจาก distanceCm
+        payload.distanceCm = distanceCm;
+        payload.floatBackupActive = floatActive;
+        payload.batteryVoltage = batV;
+        payload.currentEmptyCm = 0.0f;
+        payload.currentFullCm = 0.0f;
+        payload.messageId = ++rtcMsgCount;
+
+        // 4. ส่งข้อมูลแบบ Multi-Channel Broadcast
+        esp_err_t sendResult = ESP_FAIL;
+        for (uint8_t ch = 1; ch <= 13; ch++) {
+            esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+            esp_err_t res = esp_now_send(broadcastMacAddress, (uint8_t *)&payload, sizeof(payload));
+            if (res == ESP_OK) sendResult = ESP_OK;
+            delay(1);
+        }
+
+        Serial.printf("📡 [Node 3] Sent Dist: %.1fcm | Float: %s | Bat: %.2fV | Msg #%u (Sent: %s)\n",
+                      distanceCm, floatActive ? "ACTIVE" : "NORMAL", batV, rtcMsgCount,
+                      (sendResult == ESP_OK) ? "OK" : "FAIL");
+
+        // 5. รอรับแพ็กเก็ต Sync ตอบกลับจาก Master ชั่วครู่ (~60ms)
+        unsigned long waitStart = millis();
+        while (!syncReceived && (millis() - waitStart < 60)) {
+            delay(5);
+        }
     }
 
-    // Register Broadcast Peer
-    esp_now_peer_info_t peerInfo = {};
-    memcpy(peerInfo.peer_addr, broadcastMacAddress, 6);
-    peerInfo.channel = 0;
-    peerInfo.encrypt = false;
+    digitalWrite(PIN_LED_STATUS, LOW);
 
-    if (esp_now_add_peer(&peerInfo) != ESP_OK) {
-        Serial.println("Failed to add broadcast peer");
+    // ==========================================
+    // 6. คำนวณระยะเวลา DEEP SLEEP อย่างชาญฉลาด
+    // ==========================================
+    uint32_t sleepSeconds = rtcNormalIntervalSec;
+    if (sleepSeconds == 0) sleepSeconds = 30;
+
+    // ตรวจสอบเงื่อนไขการทำงาน:
+    // A. เช็คช่วงเวลากลางคืน / นอกเวลาทำงาน (เช่น 18:00 - 06:00)
+    if (rtcSleepScheduleEnabled && rtcTimeSynced) {
+        int nowM = rtcCurrentHour * 60 + rtcCurrentMin;
+        int startM = rtcActiveStartHour * 60 + rtcActiveStartMin;
+        int endM = rtcActiveEndHour * 60 + rtcActiveEndMin;
+
+        bool isOffHours = false;
+        int minsUntilWake = 0;
+
+        if (startM < endM) {
+            // ช่วงเวลาทำงานกลางวัน เช่น 06:00 - 18:00
+            if (nowM >= endM) {
+                isOffHours = true;
+                minsUntilWake = (24 * 60 - nowM) + startM;
+            } else if (nowM < startM) {
+                isOffHours = true;
+                minsUntilWake = startM - nowM;
+            }
+        } else if (startM > endM) {
+            // ช่วงเวลาทำงานข้ามคืน เช่น 18:00 - 06:00
+            if (nowM >= endM && nowM < startM) {
+                isOffHours = true;
+                minsUntilWake = startM - nowM;
+            }
+        }
+
+        if (isOffHours && minsUntilWake > 0) {
+            // นอกเวลาทำงาน: หลับยาวจนถึงเวลาเริ่มทำงาน (เช่น 06:00)
+            sleepSeconds = (uint32_t)minsUntilWake * 60;
+            Serial.printf("🌙 [Node 3] Off-hours detected (%02d:%02d - %02d:%02d). Sleeping for %d mins until %02d:%02d...\n",
+                          rtcActiveStartHour, rtcActiveStartMin, rtcActiveEndHour, rtcActiveEndMin,
+                          minsUntilWake, rtcActiveStartHour, rtcActiveStartMin);
+        }
     }
 
-    Serial.println("Node 3 Ready (Multi-Channel Broadcast Active).");
+    // B. ในเวลาทำงานปกติ: เลือกระหว่าง Normal Sampling vs Fast Sampling
+    if (sleepSeconds == rtcNormalIntervalSec) {
+        bool isFastMode = false;
+
+        // เงื่อนไข 1: ปั๊มบาดาลเปิดอยู่ (กำลังเติมน้ำเข้าแทงค์)
+        if (rtcBoreholeRunning) {
+            isFastMode = true;
+            Serial.println("⚡ [Node 3] Borehole pump active -> Switching to FAST SAMPLING.");
+        }
+        // เงื่อนไข 2: สวิตช์ลูกลอยตัดเตือนน้ำล้น
+        else if (floatActive) {
+            isFastMode = true;
+            Serial.println("⚡ [Node 3] Float switch backup triggered -> Switching to FAST SAMPLING.");
+        }
+        // เงื่อนไข 3: ระยะน้ำอยู่ระดับใกล้เต็ม (เช่น < 50cm)
+        else if (distanceCm > 0 && distanceCm <= 50.0f) {
+            isFastMode = true;
+            Serial.printf("⚡ [Node 3] Water near full (Dist: %.1fcm) -> Switching to FAST SAMPLING.\n", distanceCm);
+        }
+
+        if (isFastMode) {
+            sleepSeconds = rtcFastIntervalSec;
+            if (sleepSeconds == 0) sleepSeconds = 3;
+        }
+    }
+
+    Serial.printf("💤 [Node 3] Entering Deep Sleep for %u seconds...\n", sleepSeconds);
+    Serial.println("==========================================");
+    Serial.flush();
+
+    // 7. เข้าสู่ Deep Sleep ทันที (กินกระแส < 50 µA)
+    esp_sleep_enable_timer_wakeup((uint64_t)sleepSeconds * 1000000ULL);
+    esp_deep_sleep_start();
 }
 
 void loop() {
-    // 1. อ่านค่าระยะจริงจาก Ultrasonic (cm)
-    float distanceCm = readUltrasonicDistanceCm();
-
-    // 2. อ่านสวิตช์ลูกลอย Backup (Active LOW เมื่อลูกลอยต่อลง GND ตอนลอยสูงสุด)
-    bool floatActive = (digitalRead(PIN_FLOAT_BACKUP) == LOW);
-
-    // 3. อ่านแรงดันแบตเตอรี่
-    float batV = readBatteryVoltage();
-
-    // 4. บรรจุ Payload (ส่งค่าระยะ cm ไปให้ Master ประมวลผลและคำนวณระดับน้ำที่ส่วนกลาง)
-    payload.nodeId = NODE_WATER_TANK;
-    payload.waterLevelPercent = 0.0f; // ให้ Master คำนวณตามค่า Calibration ที่ Master
-    payload.distanceCm = distanceCm;
-    payload.floatBackupActive = floatActive;
-    payload.batteryVoltage = batV;
-    payload.currentEmptyCm = 0.0f;
-    payload.currentFullCm = 0.0f;
-    payload.messageId = ++msgCount;
-
-    // 5. ส่ง ESP-NOW Multi-Channel Broadcast (ครอบคลุมช่อง 1 - 13 เพื่อรับประกันว่าจะตรงกับ Channel ของ Master เสมอ)
-    digitalWrite(PIN_LED_STATUS, HIGH); // ไฟสถานะกะพริบขณะส่ง
-    esp_err_t sendResult = ESP_FAIL;
-    for (uint8_t ch = 1; ch <= 13; ch++) {
-        esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
-        esp_err_t res = esp_now_send(broadcastMacAddress, (uint8_t *)&payload, sizeof(payload));
-        if (res == ESP_OK) sendResult = ESP_OK;
-        delay(2);
-    }
-    digitalWrite(PIN_LED_STATUS, LOW);
-
-    if (distanceCm > 0) {
-        Serial.printf("[Node 3] Raw Dist: %.1f cm | Float Backup: %s | Bat: %.2fV | Msg #%u (Sent: %s)\n",
-                      distanceCm, floatActive ? "ACTIVE (Cutoff)" : "NORMAL", batV, msgCount,
-                      (sendResult == ESP_OK) ? "OK" : "FAIL");
-    } else {
-        Serial.printf("[Node 3] ⚠️ No Echo / Sensor Read Error (Check 5V Power & Wiring Trig:G5, Echo:G18) | Bat: %.2fV | Msg #%u (Sent: %s)\n",
-                      batV, msgCount, (sendResult == ESP_OK) ? "OK" : "FAIL");
-    }
-
-    // ส่งข้อมูลทุก 5 วินาทีระหว่างทดสอบ (ปกติ 15 วิ)
-    delay(5000);
+    // ไม่ได้ใช้งานเนื่องจาก ESP32 เข้าสู่ Deep Sleep ใน setup()
 }

@@ -305,6 +305,45 @@ function updateData() {
         if (data.pPStart !== undefined) document.getElementById('pPStart').value = data.pPStart;
         if (data.pPStop !== undefined) document.getElementById('pPStop').value = data.pPStop;
 
+        // ⚡ 2-Stage Tank Sampling
+        if (data.tNormInt !== undefined) {
+          const tNorm = document.getElementById('tankNormalIntervalSec');
+          if (tNorm) tNorm.value = data.tNormInt;
+        }
+        if (data.tFastInt !== undefined) {
+          const tFast = document.getElementById('tankFastIntervalSec');
+          if (tFast) tFast.value = data.tFastInt;
+        }
+        if (data.tFastPct !== undefined) {
+          const tThresh = document.getElementById('tankFastThresholdPct');
+          if (tThresh) tThresh.value = data.tFastPct;
+        }
+
+        // 💤 Power & Deep Sleep Schedule
+        const selStartH = document.getElementById('actStartH');
+        const selStartM = document.getElementById('actStartM');
+        const selEndH = document.getElementById('actEndH');
+        const selEndM = document.getElementById('actEndM');
+
+        if (selStartH && selStartM && selEndH && selEndM) {
+          let hOpts = '', mOpts = '';
+          for (let h = 0; h < 24; h++) hOpts += `<option value="${h}">${String(h).padStart(2,'0')}</option>`;
+          for (let m = 0; m < 60; m += 5) mOpts += `<option value="${m}">${String(m).padStart(2,'0')}</option>`;
+
+          selStartH.innerHTML = hOpts;
+          selStartM.innerHTML = mOpts;
+          selEndH.innerHTML = hOpts;
+          selEndM.innerHTML = mOpts;
+
+          selStartH.value = (data.actStartH !== undefined) ? data.actStartH : 6;
+          selStartM.value = (data.actStartM !== undefined) ? data.actStartM : 0;
+          selEndH.value = (data.actEndH !== undefined) ? data.actEndH : 18;
+          selEndM.value = (data.actEndM !== undefined) ? data.actEndM : 0;
+        }
+
+        const mSleepSel = document.getElementById('masterSleepSelect');
+        if (mSleepSel) mSleepSel.value = data.masterSleep ? "1" : "0";
+
         // System Parameters
         if (data.nodeOfflineTimeoutMin !== undefined) {
           document.getElementById('nodeOfflineTimeoutMin').value = data.nodeOfflineTimeoutMin;
@@ -438,12 +477,30 @@ function updateData() {
 
       // Auto Borehole Badge
       const autoBadge = document.getElementById('autoBoreholeBadge');
-      if (data.autoBorehole) {
-        autoBadge.innerText = 'เปิดใช้งาน (ON)';
-        autoBadge.style.color = '#10b981';
-      } else {
-        autoBadge.innerText = 'ปิดใช้งาน (OFF)';
-        autoBadge.style.color = '#94a3b8';
+      if (autoBadge) {
+        if (data.autoBorehole) {
+          autoBadge.innerText = 'เปิดใช้งาน (ON)';
+          autoBadge.style.color = '#10b981';
+        } else {
+          autoBadge.innerText = 'ปิดใช้งาน (OFF)';
+          autoBadge.style.color = '#94a3b8';
+        }
+      }
+
+      // Power Sleep Badge
+      const pSleepBadge = document.getElementById('powerSleepBadge');
+      if (pSleepBadge) {
+        if (data.masterSleep) {
+          const sH = String(data.actStartH || 6).padStart(2, '0');
+          const sM = String(data.actStartM || 0).padStart(2, '0');
+          const eH = String(data.actEndH || 18).padStart(2, '0');
+          const eM = String(data.actEndM || 0).padStart(2, '0');
+          pSleepBadge.innerText = `● Deep Sleep ON (${sH}:${sM} - ${eH}:${eM})`;
+          pSleepBadge.style.color = '#c084fc';
+        } else {
+          pSleepBadge.innerText = '● เปิดทำงานตลอด 24 ชม. (Sleep OFF)';
+          pSleepBadge.style.color = '#94a3b8';
+        }
       }
 
       // Relays (Full 8 Relays)
@@ -745,6 +802,37 @@ function saveSystemConfig() {
   fetch('/api/system_config?nodeOffMin=' + nodeOffMin, { method: 'POST' })
     .then(res => res.json())
     .then(res => showNotification(res.msg || 'บันทึกเรียบร้อย', 'success'))
+    .catch(err => showNotification('เกิดข้อผิดพลาด: ' + err, 'error'));
+}
+
+function savePowerConfig() {
+  const masterSleep = document.getElementById('masterSleepSelect').value;
+  const actStartH = document.getElementById('actStartH').value;
+  const actStartM = document.getElementById('actStartM').value;
+  const actEndH = document.getElementById('actEndH').value;
+  const actEndM = document.getElementById('actEndM').value;
+
+  const url = `/api/power_config?masterSleep=${masterSleep}&actStartH=${actStartH}&actStartM=${actStartM}&actEndH=${actEndH}&actEndM=${actEndM}`;
+  fetch(url, { method: 'POST' })
+    .then(res => res.json())
+    .then(res => showNotification(res.msg || 'บันทึกช่วงเวลาทำงานและ Deep Sleep สำเร็จ', 'success'))
+    .catch(err => showNotification('เกิดข้อผิดพลาด: ' + err, 'error'));
+}
+
+function saveTankSamplingConfig() {
+  const tNormInt = parseInt(document.getElementById('tankNormalIntervalSec').value);
+  const tFastInt = parseInt(document.getElementById('tankFastIntervalSec').value);
+  const tFastPct = parseFloat(document.getElementById('tankFastThresholdPct').value);
+
+  if (isNaN(tNormInt) || isNaN(tFastInt) || isNaN(tFastPct) || tNormInt < 1 || tFastInt < 1 || tFastPct <= 0 || tFastPct > 100) {
+    showNotification('กรุณากรอกตัวเลขความถี่ (วินาที) และเกณฑ์ระดับน้ำ (%) ให้ถูกต้อง', 'error');
+    return;
+  }
+
+  const url = `/api/tank_sampling_config?tNormInt=${tNormInt}&tFastInt=${tFastInt}&tFastPct=${tFastPct}`;
+  fetch(url, { method: 'POST' })
+    .then(res => res.json())
+    .then(res => showNotification(res.msg || 'บันทึกความถี่การส่งข้อมูลเซ็นเซอร์แทงค์น้ำสำเร็จ', 'success'))
     .catch(err => showNotification('เกิดข้อผิดพลาด: ' + err, 'error'));
 }
 

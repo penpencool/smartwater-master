@@ -446,12 +446,91 @@ const char DASHBOARD_BODY[] PROGMEM = R"rawliteral(
         </div>
         <button class="btn primary" style="width: 100%; margin-top: 8px;" onclick="saveTankCalib()">บันทึกระดับแทงค์น้ำ (ส่งไป Node 3)</button>
       </div>
+
+      <!-- ⚡ 2-Stage Adaptive Tank Sampling Card -->
+      <div class="card" style="grid-column: span 2; border: 1.5px solid rgba(56, 189, 248, 0.4); background: linear-gradient(135deg, rgba(15, 23, 42, 0.85), rgba(14, 116, 144, 0.2));">
+        <div class="card-title">
+          <span>⚡ ความถี่การส่งข้อมูลเซ็นเซอร์แทงค์น้ำ (2-Stage Adaptive Sampling)</span>
+          <span style="font-size: 0.8rem; color: #38bdf8; background: rgba(56, 189, 248, 0.15); padding: 3px 10px; border-radius: 12px;">Deep Sleep Sync</span>
+        </div>
+        <div style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 12px;">
+          ระบบจะปรับความถี่การตื่นของ Node 3 อัตโนมัติ: สภาวะปกติจะส่งข้อมูลห่างเพื่อประหยัดแบตเตอรี่สูงสุด และจะสลับเป็นโหมดส่งถี่ทันทีเมื่อระดับน้ำใกล้เต็ม หรือขณะที่ปั๊มบาดาลกำลังสูบน้ำเข้าแทงค์
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px;">
+          <div style="background: rgba(15, 23, 42, 0.6); padding: 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08);">
+            <div style="font-weight: 700; color: #38bdf8; margin-bottom: 8px;">🟢 ระดับปกติ (Normal Sampling)</div>
+            <div class="input-row">
+              <label>ความถี่ส่งข้อมูลช่วงปกติ (วินาที):</label>
+              <input type="number" id="tankNormalIntervalSec" min="1" max="3600" placeholder="เช่น 30 (วินาที)">
+            </div>
+            <div style="font-size: 0.75rem; color: var(--text-muted);">ใช้เมื่อระดับน้ำต่ำกว่าเกณฑ์ และปั๊มบาดาลปิดอยู่</div>
+          </div>
+          <div style="background: rgba(15, 23, 42, 0.6); padding: 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08);">
+            <div style="font-weight: 700; color: #f59e0b; margin-bottom: 8px;">⚡ ระดับใกล้เต็ม / กำลังเติม (Fast Sampling)</div>
+            <div class="input-row">
+              <label>ความถี่ส่งข้อมูลช่วงใกล้เต็ม (วินาที):</label>
+              <input type="number" id="tankFastIntervalSec" min="1" max="60" placeholder="เช่น 3 (วินาที)">
+            </div>
+            <div class="input-row">
+              <label>เริ่มส่งถี่เมื่อระดับน้ำถึง (%):</label>
+              <input type="number" id="tankFastThresholdPct" min="10" max="99" placeholder="เช่น 80 (%)">
+            </div>
+          </div>
+        </div>
+        <button class="btn primary" style="width: 100%; margin-top: 12px;" onclick="saveTankSamplingConfig()">💾 บันทึกการตั้งค่าความถี่เซ็นเซอร์แทงค์น้ำ (Sync Node 3)</button>
+      </div>
     </div>
   </div>
 
   <!-- ================= TAB 4: SYSTEM & WI-FI ================= -->
   <div id="tab-system" class="tab-pane">
     <div class="grid">
+      <!-- 💤 Power Management & Sleep Schedule Card -->
+      <div class="card" style="grid-column: span 2; border: 1.5px solid rgba(168, 85, 247, 0.4); background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(88, 28, 135, 0.25));">
+        <div class="card-title">
+          <span style="color: #c084fc;">💤 ช่วงเวลาทำงาน & โหมดประหยัดพลังงาน (Power & Deep Sleep Schedule)</span>
+          <span id="powerSleepBadge" style="font-size: 0.8rem; background: rgba(168, 85, 247, 0.2); color: #c084fc; padding: 3px 10px; border-radius: 12px;">Active Window</span>
+        </div>
+        <div style="font-size: 0.82rem; color: #cbd5e1; margin-bottom: 14px;">
+          กำหนดช่วงเวลาทำงานของระบบ Master Controller และเซ็นเซอร์ Node 3 (เช่น 06:00 - 18:00) เมื่อพ้นเวลาทำงานระบบจะปิดโหลดทั้งหมดและเข้าสู่โหมด <strong>Deep Sleep</strong> จนถึงเวลาเริ่มทำงานของวันถัดไป เพื่อประหยัดพลังงานแบตเตอรี่และโซลาร์เซลล์
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px;">
+          <div style="background: rgba(15, 23, 42, 0.6); padding: 14px; border-radius: 10px; border: 1px solid rgba(168, 85, 247, 0.3);">
+            <div style="font-weight: 700; color: #c084fc; margin-bottom: 8px;">⚙️ โหมด Deep Sleep นอกเวลาทำงาน</div>
+            <div class="input-row">
+              <label>Master Deep Sleep นอกเวลา:</label>
+              <select id="masterSleepSelect">
+                <option value="1">🟢 เปิดใช้งาน (เข้า Deep Sleep หลังหมดเวลาทำงาน)</option>
+                <option value="0">⚪ ปิดใช้งาน (เปิดทำงานตลอด 24 ชม.)</option>
+              </select>
+            </div>
+            <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 4px;">* เมื่อเปิดใช้งาน Master จะตัดปั๊มทั้งหมดและหลับช่วงกลางคืนอัตโนมัติ</div>
+          </div>
+          <div style="background: rgba(15, 23, 42, 0.6); padding: 14px; border-radius: 10px; border: 1px solid rgba(168, 85, 247, 0.3);">
+            <div style="font-weight: 700; color: #38bdf8; margin-bottom: 8px;">🕒 กำหนดช่วงเวลาทำงาน (24 ชม.)</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div>
+                <label style="font-size: 0.8rem; color: var(--text-muted);">เริ่มทำงาน (ตื่น):</label>
+                <div style="display: flex; gap: 4px; align-items: center; margin-top: 4px;">
+                  <select id="actStartH" style="flex: 1; padding: 6px;"></select>
+                  <span>:</span>
+                  <select id="actStartM" style="flex: 1; padding: 6px;"></select>
+                </div>
+              </div>
+              <div>
+                <label style="font-size: 0.8rem; color: var(--text-muted);">สิ้นสุดทำงาน (หลับ):</label>
+                <div style="display: flex; gap: 4px; align-items: center; margin-top: 4px;">
+                  <select id="actEndH" style="flex: 1; padding: 6px;"></select>
+                  <span>:</span>
+                  <select id="actEndM" style="flex: 1; padding: 6px;"></select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <button class="btn primary" style="width: 100%; margin-top: 12px; background: #9333ea; border-color: #a855f7;" onclick="savePowerConfig()">💾 บันทึกช่วงเวลาทำงานและโหมด Deep Sleep</button>
+      </div>
+
       <!-- Solar Telemetry -->
       <div class="card">
         <div class="card-title">ข้อมูลแผงโซล่าเซลล์ & เซ็นเซอร์</div>

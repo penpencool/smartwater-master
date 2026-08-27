@@ -160,6 +160,35 @@ public:
                 if (doFloatCutoff) {
                     HardwareController::setRelay(RELAY_BOREHOLE, false);
                 }
+
+                // 📡 Master ตอบกลับคำสั่ง Sync เวลา และ การตั้งค่า Sleep/Interval ให้ Node 3 ทันที
+                TankSyncConfigPayload syncPayload;
+                syncPayload.msgType = NODE_TANK_SYNC_CFG;
+                struct tm timeinfo;
+                if (getLocalTime(&timeinfo, 0)) {
+                    syncPayload.currentHour = timeinfo.tm_hour;
+                    syncPayload.currentMin  = timeinfo.tm_min;
+                    syncPayload.currentSec  = timeinfo.tm_sec;
+                    syncPayload.isNtpSynced = ntpSynced;
+                } else {
+                    syncPayload.currentHour = 12;
+                    syncPayload.currentMin  = 0;
+                    syncPayload.currentSec  = 0;
+                    syncPayload.isNtpSynced = false;
+                }
+                syncPayload.sleepScheduleEnabled = configManager.config.masterSleepEnabled;
+                syncPayload.activeStartHour      = configManager.config.activeStartHour;
+                syncPayload.activeStartMin       = configManager.config.activeStartMin;
+                syncPayload.activeEndHour        = configManager.config.activeEndHour;
+                syncPayload.activeEndMin         = configManager.config.activeEndMin;
+                syncPayload.normalIntervalSec    = configManager.config.tankNormalIntervalSec;
+                syncPayload.fastIntervalSec      = configManager.config.tankFastIntervalSec;
+                syncPayload.fastThresholdPct     = configManager.config.tankFastThresholdPct;
+                syncPayload.isBoreholeRunning    = stateBorehole;
+                syncPayload.syncId               = localTank.messageId;
+
+                uint8_t bcastMac[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+                esp_now_send(bcastMac, (uint8_t *)&syncPayload, sizeof(syncPayload));
             }
             else if (nodeId == NODE_SOLAR_PANEL && len >= sizeof(SolarNodePayload)) {
                 {
