@@ -184,7 +184,9 @@ public:
                 syncPayload.normalIntervalSec    = configManager.config.tankNormalIntervalSec;
                 syncPayload.fastIntervalSec      = configManager.config.tankFastIntervalSec;
                 syncPayload.fastThresholdPct     = configManager.config.tankFastThresholdPct;
+                syncPayload.lowThresholdPct      = configManager.config.tankLowFastThresholdPct;
                 syncPayload.isBoreholeRunning    = stateBorehole;
+                syncPayload.isFilterPumpRunning  = stateFilterPump;
                 syncPayload.syncId               = localTank.messageId;
 
                 uint8_t bcastMac[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};

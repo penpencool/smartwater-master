@@ -450,30 +450,34 @@ const char DASHBOARD_BODY[] PROGMEM = R"rawliteral(
       <!-- ⚡ 2-Stage Adaptive Tank Sampling Card -->
       <div class="card" style="grid-column: span 2; border: 1.5px solid rgba(56, 189, 248, 0.4); background: linear-gradient(135deg, rgba(15, 23, 42, 0.85), rgba(14, 116, 144, 0.2));">
         <div class="card-title">
-          <span>⚡ ความถี่การส่งข้อมูลเซ็นเซอร์แทงค์น้ำ (2-Stage Adaptive Sampling)</span>
+          <span>⚡ ความถี่การส่งข้อมูลเซ็นเซอร์แทงค์น้ำ (Adaptive Dual-Edge Sampling)</span>
           <span style="font-size: 0.8rem; color: #38bdf8; background: rgba(56, 189, 248, 0.15); padding: 3px 10px; border-radius: 12px;">Deep Sleep Sync</span>
         </div>
         <div style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 12px;">
-          ระบบจะปรับความถี่การตื่นของ Node 3 อัตโนมัติ: สภาวะปกติจะส่งข้อมูลห่างเพื่อประหยัดแบตเตอรี่สูงสุด และจะสลับเป็นโหมดส่งถี่ทันทีเมื่อระดับน้ำใกล้เต็ม หรือขณะที่ปั๊มบาดาลกำลังสูบน้ำเข้าแทงค์
+          ระบบจะปรับความถี่การตื่นของ Node 3 อัตโนมัติ: สภาวะปกติ/น้ำกลางแทงค์จะส่งข้อมูลห่างเพื่อประหยัดแบตเตอรี่สูงสุด และจะสลับเป็นโหมดส่งถี่ทันทีทั้ง <strong>ตอนเติมน้ำใกล้เต็ม</strong> และ <strong>ตอนน้ำลดเข้าใกล้จุดวิกฤต/ใกล้หมด</strong>
         </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px;">
           <div style="background: rgba(15, 23, 42, 0.6); padding: 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08);">
-            <div style="font-weight: 700; color: #38bdf8; margin-bottom: 8px;">🟢 ระดับปกติ (Normal Sampling)</div>
+            <div style="font-weight: 700; color: #38bdf8; margin-bottom: 8px;">🟢 ระดับปกติ / น้ำกลางแทงค์ (Eco Normal)</div>
             <div class="input-row">
               <label>ความถี่ส่งข้อมูลช่วงปกติ (วินาที):</label>
-              <input type="number" id="tankNormalIntervalSec" min="1" max="3600" placeholder="เช่น 30 (วินาที)">
+              <input type="number" id="tankNormalIntervalSec" min="1" max="3600" placeholder="เช่น 60 (วินาที)">
             </div>
-            <div style="font-size: 0.75rem; color: var(--text-muted);">ใช้เมื่อระดับน้ำต่ำกว่าเกณฑ์ และปั๊มบาดาลปิดอยู่</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted);">ใช้เมื่อระดับน้ำอยู่ในเกณฑ์ปลอดภัย และปั๊มทั้งหมดปิดอยู่</div>
           </div>
           <div style="background: rgba(15, 23, 42, 0.6); padding: 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08);">
-            <div style="font-weight: 700; color: #f59e0b; margin-bottom: 8px;">⚡ ระดับใกล้เต็ม / กำลังเติม (Fast Sampling)</div>
+            <div style="font-weight: 700; color: #f59e0b; margin-bottom: 8px;">⚡ ช่วงวิกฤต / ใกล้เต็ม / ใกล้หมด (Fast Mode)</div>
             <div class="input-row">
-              <label>ความถี่ส่งข้อมูลช่วงใกล้เต็ม (วินาที):</label>
+              <label>ความถี่ส่งข้อมูลช่วงส่งถี่ (วินาที):</label>
               <input type="number" id="tankFastIntervalSec" min="1" max="60" placeholder="เช่น 3 (วินาที)">
             </div>
             <div class="input-row">
-              <label>เริ่มส่งถี่เมื่อระดับน้ำถึง (%):</label>
-              <input type="number" id="tankFastThresholdPct" min="10" max="99" placeholder="เช่น 80 (%)">
+              <label>เริ่มส่งถี่ขาขึ้น เมื่อน้ำสูงถึง (%):</label>
+              <input type="number" id="tankFastThresholdPct" min="50" max="99" placeholder="เช่น 80 (%)">
+            </div>
+            <div class="input-row">
+              <label>เริ่มส่งถี่ขาลง เมื่อน้ำลดต่ำกว่า (%):</label>
+              <input type="number" id="tankLowFastThresholdPct" min="5" max="60" placeholder="เช่น 35 (%)">
             </div>
           </div>
         </div>

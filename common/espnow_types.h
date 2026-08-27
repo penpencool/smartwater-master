@@ -36,11 +36,13 @@ struct __attribute__((packed)) TankSyncConfigPayload {
     uint8_t activeEndHour;        // พัก/เริ่มหลับ (เช่น 18 = 18:00)
     uint8_t activeEndMin;         // พัก/เริ่มหลับ (เช่น 0 = :00)
     
-    // การส่งข้อมูล 2 ระดับ (2-Stage Adaptive Sampling)
-    uint16_t normalIntervalSec;   // ความถี่ส่งช่วงปกติ (เช่น 30 วินาที)
-    uint16_t fastIntervalSec;     // ความถี่ส่งช่วงใกล้เต็ม/เติมน้ำ (เช่น 3 วินาที)
-    float fastThresholdPct;       // ระดับน้ำที่ให้เริ่มส่งถี่ (เช่น 80.0%)
-    bool isBoreholeRunning;       // ปั๊มบาดาลเปิดอยู่หรือไม่ (ถ้าเปิดอยู่ ให้ Node 3 ส่งถี่ทันที)
+    // การส่งข้อมูล 2 ระดับ (Adaptive Sampling ทั้งขาขึ้นและขาลง)
+    uint16_t normalIntervalSec;   // ความถี่ส่งช่วงปกติ/น้ำกลางแทงค์ (เช่น 60 วินาที)
+    uint16_t fastIntervalSec;     // ความถี่ส่งช่วงวิกฤต/ใกล้เต็ม/ใกล้หมด (เช่น 3 วินาที)
+    float fastThresholdPct;       // ระดับน้ำสูงที่ให้เริ่มส่งถี่ขาขึ้น (เช่น 80.0%)
+    float lowThresholdPct;        // ระดับน้ำต่ำที่ให้เริ่มส่งถี่ขาลง (เช่น 35.0%)
+    bool isBoreholeRunning;       // ปั๊มบาดาลเปิดอยู่หรือไม่ (ถ้าเปิด ให้ส่งถี่)
+    bool isFilterPumpRunning;     // ปั๊มดันน้ำเปิดอยู่หรือไม่ (ถ้าเปิด ให้ส่งถี่)
     
     uint32_t syncId;              // Sequence ID
 };

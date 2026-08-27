@@ -318,6 +318,10 @@ function updateData() {
           const tThresh = document.getElementById('tankFastThresholdPct');
           if (tThresh) tThresh.value = data.tFastPct;
         }
+        if (data.tLowFastPct !== undefined) {
+          const tLowThresh = document.getElementById('tankLowFastThresholdPct');
+          if (tLowThresh) tLowThresh.value = data.tLowFastPct;
+        }
 
         // 💤 Power & Deep Sleep Schedule
         const selStartH = document.getElementById('actStartH');
@@ -823,13 +827,15 @@ function saveTankSamplingConfig() {
   const tNormInt = parseInt(document.getElementById('tankNormalIntervalSec').value);
   const tFastInt = parseInt(document.getElementById('tankFastIntervalSec').value);
   const tFastPct = parseFloat(document.getElementById('tankFastThresholdPct').value);
+  const tLowFastPct = parseFloat(document.getElementById('tankLowFastThresholdPct').value);
 
-  if (isNaN(tNormInt) || isNaN(tFastInt) || isNaN(tFastPct) || tNormInt < 1 || tFastInt < 1 || tFastPct <= 0 || tFastPct > 100) {
-    showNotification('กรุณากรอกตัวเลขความถี่ (วินาที) และเกณฑ์ระดับน้ำ (%) ให้ถูกต้อง', 'error');
+  if (isNaN(tNormInt) || isNaN(tFastInt) || isNaN(tFastPct) || isNaN(tLowFastPct) ||
+      tNormInt < 1 || tFastInt < 1 || tFastPct <= 0 || tFastPct > 100 || tLowFastPct < 0 || tLowFastPct >= tFastPct) {
+    showNotification('กรุณากรอกตัวเลขความถี่ (วินาที) และเกณฑ์ระดับน้ำ (%) ให้ถูกต้อง (เกณฑ์สูงต้องมากกว่าเกณฑ์ต่ำ)', 'error');
     return;
   }
 
-  const url = `/api/tank_sampling_config?tNormInt=${tNormInt}&tFastInt=${tFastInt}&tFastPct=${tFastPct}`;
+  const url = `/api/tank_sampling_config?tNormInt=${tNormInt}&tFastInt=${tFastInt}&tFastPct=${tFastPct}&tLowFastPct=${tLowFastPct}`;
   fetch(url, { method: 'POST' })
     .then(res => res.json())
     .then(res => showNotification(res.msg || 'บันทึกความถี่การส่งข้อมูลเซ็นเซอร์แทงค์น้ำสำเร็จ', 'success'))

@@ -64,15 +64,16 @@ struct SystemConfig {
 
     // 💤 Power Management & Sleep Schedule (Master & Nodes)
     bool masterSleepEnabled;        // เปิด/ปิด โหมด Master Deep Sleep นอกเวลาทำงาน
-    uint8_t activeStartHour;        // ชั่วโมงเริ่มทำงาน (เช่น 6 = 06:00)
+    uint8_t activeStartHour;        // ชั่วโมงเริ่มทำงาน (เช่น 5 = 05:00)
     uint8_t activeStartMin;         // นาทีเริ่มทำงาน (เช่น 0 = :00)
-    uint8_t activeEndHour;          // ชั่วโมงสิ้นสุด/เริ่มหลับ (เช่น 18 = 18:00)
+    uint8_t activeEndHour;          // ชั่วโมงสิ้นสุด/เริ่มหลับ (เช่น 20 = 20:00)
     uint8_t activeEndMin;           // นาทีสิ้นสุด/เริ่มหลับ (เช่น 0 = :00)
 
     // ⚡ 2-Stage Adaptive Tank Sampling (Node 3)
-    uint16_t tankNormalIntervalSec; // ความถี่ส่งข้อมูลช่วงปกติ (เช่น 30 วินาที)
-    uint16_t tankFastIntervalSec;   // ความถี่ส่งข้อมูลช่วงใกล้เต็ม/เติมน้ำ (เช่น 3 วินาที)
-    float tankFastThresholdPct;     // ระดับน้ำที่เริ่มส่งถี่ (%) (เช่น 80.0%)
+    uint16_t tankNormalIntervalSec; // ความถี่ส่งข้อมูลช่วงปกติ/น้ำกลางแทงค์ (เช่น 60 วินาที)
+    uint16_t tankFastIntervalSec;   // ความถี่ส่งข้อมูลช่วงวิกฤต/ใกล้เต็ม/ใกล้หมด (เช่น 3 วินาที)
+    float tankFastThresholdPct;     // ระดับน้ำสูงที่เริ่มส่งถี่ขาขึ้น (%) (เช่น 80.0%)
+    float tankLowFastThresholdPct;  // ระดับน้ำต่ำที่เริ่มส่งถี่ขาลง (%) (เช่น 35.0%)
 
     // Wi-Fi Config
     char wifiSSID[32];
@@ -153,17 +154,18 @@ public:
         config.poolTopUpDelayMin= prefs.getUShort("poolDelay", 5);
         config.nodeOfflineTimeoutMin = prefs.getUShort("nodeOffMin", 2);
 
-        // Power Management & Sleep Schedule
+        // Power Management & Sleep Schedule (Default: 05:00 - 20:00)
         config.masterSleepEnabled       = prefs.getBool("mSleepEn", false);
-        config.activeStartHour          = prefs.getUChar("actStartH", 6);
+        config.activeStartHour          = prefs.getUChar("actStartH", 5);
         config.activeStartMin           = prefs.getUChar("actStartM", 0);
-        config.activeEndHour            = prefs.getUChar("actEndH", 18);
+        config.activeEndHour            = prefs.getUChar("actEndH", 20);
         config.activeEndMin             = prefs.getUChar("actEndM", 0);
 
-        // 2-Stage Tank Sampling
-        config.tankNormalIntervalSec    = prefs.getUShort("tNormInt", 30);
+        // 2-Stage Tank Sampling (Default: Normal 60s, Fast 3s, High 80%, Low 35%)
+        config.tankNormalIntervalSec    = prefs.getUShort("tNormInt", 60);
         config.tankFastIntervalSec      = prefs.getUShort("tFastInt", 3);
         config.tankFastThresholdPct     = prefs.getFloat("tFastPct", 80.0f);
+        config.tankLowFastThresholdPct  = prefs.getFloat("tLowFastPct", 35.0f);
 
         String ssid = prefs.getString("ssid", "");
         String pass = prefs.getString("pass", "");
@@ -224,17 +226,18 @@ public:
         config.poolTopUpDelayMin = 5;
         config.nodeOfflineTimeoutMin = 2;
 
-        // Power Management Defaults
+        // Power Management Defaults (05:00 - 20:00)
         config.masterSleepEnabled = false;
-        config.activeStartHour = 6;
+        config.activeStartHour = 5;
         config.activeStartMin = 0;
-        config.activeEndHour = 18;
+        config.activeEndHour = 20;
         config.activeEndMin = 0;
 
         // 2-Stage Tank Sampling Defaults
-        config.tankNormalIntervalSec = 30;
+        config.tankNormalIntervalSec = 60;
         config.tankFastIntervalSec = 3;
         config.tankFastThresholdPct = 80.0f;
+        config.tankLowFastThresholdPct = 35.0f;
 
         memset(config.wifiSSID, 0, sizeof(config.wifiSSID));
         memset(config.wifiPassword, 0, sizeof(config.wifiPassword));
@@ -303,6 +306,7 @@ public:
         prefs.putUShort("tNormInt", config.tankNormalIntervalSec);
         prefs.putUShort("tFastInt", config.tankFastIntervalSec);
         prefs.putFloat("tFastPct", config.tankFastThresholdPct);
+        prefs.putFloat("tLowFastPct", config.tankLowFastThresholdPct);
 
         prefs.putString("ssid", config.wifiSSID);
         prefs.putString("pass", config.wifiPassword);

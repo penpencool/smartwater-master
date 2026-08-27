@@ -27,16 +27,18 @@ RTC_DATA_ATTR uint32_t rtcMsgCount = 0;
 // การตั้งค่าที่ Sync จาก Master (จำไว้ใน RTC RAM ไม่ต้องเขียน Flash)
 RTC_DATA_ATTR bool rtcConfigValid = false;
 RTC_DATA_ATTR bool rtcSleepScheduleEnabled = true;
-RTC_DATA_ATTR uint8_t rtcActiveStartHour = 6;
+RTC_DATA_ATTR uint8_t rtcActiveStartHour = 5;      // เริ่มทำงาน 05:00 น.
 RTC_DATA_ATTR uint8_t rtcActiveStartMin = 0;
-RTC_DATA_ATTR uint8_t rtcActiveEndHour = 18;
+RTC_DATA_ATTR uint8_t rtcActiveEndHour = 20;       // สิ้นสุด/เริ่มหลับ 20:00 น.
 RTC_DATA_ATTR uint8_t rtcActiveEndMin = 0;
 
-RTC_DATA_ATTR uint16_t rtcNormalIntervalSec = 30; // ส่งปกติทุก 30 วินาที
-RTC_DATA_ATTR uint16_t rtcFastIntervalSec = 3;    // ส่งถี่ทุก 3 วินาที (ตอนใกล้เต็ม / ปั๊มสูบน้ำเข้า)
-RTC_DATA_ATTR float rtcFastThresholdPct = 80.0f;  // เกณฑ์เริ่มส่งถี่ 80%
+RTC_DATA_ATTR uint16_t rtcNormalIntervalSec = 60;  // ความถี่ส่งช่วงปกติ/น้ำกลางแทงค์ (60 วินาที)
+RTC_DATA_ATTR uint16_t rtcFastIntervalSec = 3;     // ความถี่ส่งช่วงวิกฤต/ใกล้เต็ม/ใกล้หมด (3 วินาที)
+RTC_DATA_ATTR float rtcFastThresholdPct = 80.0f;   // เกณฑ์เริ่มส่งถี่ขาขึ้น (80%)
+RTC_DATA_ATTR float rtcLowFastThresholdPct = 35.0f; // เกณฑ์เริ่มส่งถี่ขาลง (35%)
 
-RTC_DATA_ATTR bool rtcBoreholeRunning = false;    // ปั๊มบาดาลเปิดอยู่หรือไม่
+RTC_DATA_ATTR bool rtcBoreholeRunning = false;     // ปั๊มบาดาลเปิดอยู่หรือไม่
+RTC_DATA_ATTR bool rtcFilterPumpRunning = false;   // ปั๊มดันน้ำเปิดอยู่หรือไม่
 RTC_DATA_ATTR uint8_t rtcCurrentHour = 12;
 RTC_DATA_ATTR uint8_t rtcCurrentMin = 0;
 RTC_DATA_ATTR bool rtcTimeSynced = false;
@@ -129,17 +131,21 @@ void onDataReceived(const uint8_t *mac, const uint8_t *incomingData, int len) {
             rtcNormalIntervalSec     = syncData.normalIntervalSec;
             rtcFastIntervalSec       = syncData.fastIntervalSec;
             rtcFastThresholdPct      = syncData.fastThresholdPct;
+            rtcLowFastThresholdPct   = syncData.lowThresholdPct;
             rtcBoreholeRunning       = syncData.isBoreholeRunning;
+            rtcFilterPumpRunning     = syncData.isFilterPumpRunning;
             rtcCurrentHour           = syncData.currentHour;
             rtcCurrentMin            = syncData.currentMin;
             rtcTimeSynced            = syncData.isNtpSynced;
 
             syncReceived = true;
-            Serial.printf("📥 [Node 3] Received Sync from Master: Time=%02d:%02d:%02d (NTP=%s) | Normal=%ds, Fast=%ds (Thresh=%.0f%%) | Borehole=%s\n",
+            Serial.printf("📥 [Node 3] Received Sync from Master: Time=%02d:%02d:%02d (NTP=%s) | Normal=%ds, Fast=%ds (High=%.0f%%, Low=%.0f%%) | Borehole=%s, Filter=%s\n",
                           syncData.currentHour, syncData.currentMin, syncData.currentSec,
                           syncData.isNtpSynced ? "YES" : "NO",
-                          syncData.normalIntervalSec, syncData.fastIntervalSec, syncData.fastThresholdPct,
-                          syncData.isBoreholeRunning ? "ON" : "OFF");
+                          syncData.normalIntervalSec, syncData.fastIntervalSec,
+                          syncData.fastThresholdPct, syncData.lowThresholdPct,
+                          syncData.isBoreholeRunning ? "ON" : "OFF",
+                          syncData.isFilterPumpRunning ? "ON" : "OFF");
         }
     }
 }
@@ -216,13 +222,13 @@ void setup() {
     digitalWrite(PIN_LED_STATUS, LOW);
 
     // ==========================================
-    // 6. คำนวณระยะเวลา DEEP SLEEP อย่างชาญฉลาด
+    // 6. คำนวณระยะเวลา DEEP SLEEP อย่างชาญฉลาด (Adaptive Dual-Edge)
     // ==========================================
     uint32_t sleepSeconds = rtcNormalIntervalSec;
-    if (sleepSeconds == 0) sleepSeconds = 30;
+    if (sleepSeconds == 0) sleepSeconds = 60;
 
     // ตรวจสอบเงื่อนไขการทำงาน:
-    // A. เช็คช่วงเวลากลางคืน / นอกเวลาทำงาน (เช่น 18:00 - 06:00)
+    // A. เช็คช่วงเวลากลางคืน / นอกเวลาทำงาน (เช่น 20:00 - 05:00)
     if (rtcSleepScheduleEnabled && rtcTimeSynced) {
         int nowM = rtcCurrentHour * 60 + rtcCurrentMin;
         int startM = rtcActiveStartHour * 60 + rtcActiveStartMin;
@@ -232,7 +238,7 @@ void setup() {
         int minsUntilWake = 0;
 
         if (startM < endM) {
-            // ช่วงเวลาทำงานกลางวัน เช่น 06:00 - 18:00
+            // ช่วงเวลาทำงาน เช่น 05:00 - 20:00
             if (nowM >= endM) {
                 isOffHours = true;
                 minsUntilWake = (24 * 60 - nowM) + startM;
@@ -241,7 +247,7 @@ void setup() {
                 minsUntilWake = startM - nowM;
             }
         } else if (startM > endM) {
-            // ช่วงเวลาทำงานข้ามคืน เช่น 18:00 - 06:00
+            // ช่วงเวลาทำงานข้ามคืน
             if (nowM >= endM && nowM < startM) {
                 isOffHours = true;
                 minsUntilWake = startM - nowM;
@@ -249,7 +255,7 @@ void setup() {
         }
 
         if (isOffHours && minsUntilWake > 0) {
-            // นอกเวลาทำงาน: หลับยาวจนถึงเวลาเริ่มทำงาน (เช่น 06:00)
+            // นอกเวลาทำงาน: หลับยาวจนถึงเวลาเริ่มทำงาน (เช่น 05:00)
             sleepSeconds = (uint32_t)minsUntilWake * 60;
             Serial.printf("🌙 [Node 3] Off-hours detected (%02d:%02d - %02d:%02d). Sleeping for %d mins until %02d:%02d...\n",
                           rtcActiveStartHour, rtcActiveStartMin, rtcActiveEndHour, rtcActiveEndMin,
@@ -257,29 +263,41 @@ void setup() {
         }
     }
 
-    // B. ในเวลาทำงานปกติ: เลือกระหว่าง Normal Sampling vs Fast Sampling
+    // B. ในเวลาทำงานปกติ: เลือกระหว่าง Eco Normal (60s) vs Fast Sampling (3s)
     if (sleepSeconds == rtcNormalIntervalSec) {
         bool isFastMode = false;
 
-        // เงื่อนไข 1: ปั๊มบาดาลเปิดอยู่ (กำลังเติมน้ำเข้าแทงค์)
+        // เงื่อนไขขาขึ้น 1: ปั๊มบาดาลเปิดอยู่ (กำลังเติมน้ำเข้าแทงค์)
         if (rtcBoreholeRunning) {
             isFastMode = true;
-            Serial.println("⚡ [Node 3] Borehole pump active -> Switching to FAST SAMPLING.");
+            Serial.println("⚡ [Node 3] Borehole pump active (Refilling) -> Switching to FAST SAMPLING.");
         }
-        // เงื่อนไข 2: สวิตช์ลูกลอยตัดเตือนน้ำล้น
+        // เงื่อนไขขาลง 1: ปั๊มดันน้ำเปิดอยู่ (กำลังสูบน้ำออกรดน้ำ/เติมสระ)
+        else if (rtcFilterPumpRunning) {
+            isFastMode = true;
+            Serial.println("⚡ [Node 3] Filter pump active (Draining/Sprinkling) -> Switching to FAST SAMPLING.");
+        }
+        // เงื่อนไขขาขึ้น 2: สวิตช์ลูกลอยตัดเตือนน้ำล้น
         else if (floatActive) {
             isFastMode = true;
             Serial.println("⚡ [Node 3] Float switch backup triggered -> Switching to FAST SAMPLING.");
         }
-        // เงื่อนไข 3: ระยะน้ำอยู่ระดับใกล้เต็ม (เช่น < 50cm)
-        else if (distanceCm > 0 && distanceCm <= 50.0f) {
+        // เงื่อนไขขาขึ้น 3: ระยะน้ำอยู่ระดับใกล้เต็ม (เช่น < 55cm)
+        else if (distanceCm > 0 && distanceCm <= 55.0f) {
             isFastMode = true;
             Serial.printf("⚡ [Node 3] Water near full (Dist: %.1fcm) -> Switching to FAST SAMPLING.\n", distanceCm);
+        }
+        // เงื่อนไขขาลง 2: ระยะน้ำอยู่ระดับใกล้หมด/วิกฤต (เช่น > 130cm)
+        else if (distanceCm > 0 && distanceCm >= 130.0f) {
+            isFastMode = true;
+            Serial.printf("⚡ [Node 3] Water dropping near low/empty (Dist: %.1fcm) -> Switching to FAST SAMPLING.\n", distanceCm);
         }
 
         if (isFastMode) {
             sleepSeconds = rtcFastIntervalSec;
             if (sleepSeconds == 0) sleepSeconds = 3;
+        } else {
+            Serial.printf("🍃 [Node 3] Water in safe middle range & idle (Dist: %.1fcm) -> Eco Normal Sleep (%us).\n", distanceCm, sleepSeconds);
         }
     }
 
